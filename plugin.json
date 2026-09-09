@@ -1,0 +1,129 @@
+{
+  "name": "Underfed",
+  "version": "0.1.0",
+  "description": "Moves a channel to its next source when the provider keeps delivering the stream, but at a fraction of the bitrate the content needs.",
+  "author": "PilaScat",
+  "license": "MIT",
+  "source_type": "external",
+  "repo_url": "https://github.com/PilaScat/underfed",
+  "help_url": "https://github.com/PilaScat/underfed#readme",
+  "source_url": "https://github.com/PilaScat/underfed/releases/download/v{version}/underfed-{version}.zip",
+  "fields": [
+    {
+      "id": "api_key",
+      "label": "API key *",
+      "type": "string",
+      "default": "",
+      "help_text": "A Dispatcharr API key. Settings → Users → the account whose key you want to use. The watcher needs it to read channel status and to change source."
+    },
+    {
+      "id": "observe_only",
+      "label": "Observe only",
+      "type": "boolean",
+      "default": true,
+      "help_text": "Records what it would have done without doing it. Leave it on for the first evening, then read the journal under Check status."
+    },
+    {
+      "id": "ratio_percent",
+      "label": "Trigger below (% of content rate)",
+      "type": "number",
+      "default": 70,
+      "help_text": "reservoarr reports how many bits arrive (in) against how many the picture needs (crate). Below this share, with the cushion empty, the source counts as underfed."
+    },
+    {
+      "id": "confirm_seconds",
+      "label": "Confirm for (seconds)",
+      "type": "number",
+      "default": 45,
+      "help_text": "How long the shortfall must last before acting. Short dips recover on their own."
+    },
+    {
+      "id": "max_switches",
+      "label": "Switches per hour, per channel",
+      "type": "number",
+      "default": 2,
+      "help_text": "Stops a channel bouncing between two sources that are both weak."
+    },
+    {
+      "id": "warmup_seconds",
+      "label": "Ignore first (seconds)",
+      "type": "number",
+      "default": 60,
+      "help_text": "Right after a channel opens the measured content rate is not trustworthy yet."
+    },
+    {
+      "id": "stable_seconds",
+      "label": "Stable after (seconds)",
+      "type": "number",
+      "default": 180,
+      "help_text": "A source that holds up this long is treated as recovered."
+    },
+    {
+      "id": "exclude_channels",
+      "label": "Excluded channels",
+      "type": "text",
+      "default": "",
+      "help_text": "One channel name per line. Those keep whatever source they are on."
+    },
+    {
+      "id": "telemetry_path",
+      "label": "reservoarr log",
+      "type": "string",
+      "default": "/data/scripts/logs/delaybuf.log",
+      "help_text": "Where reservoarr writes delaybuf.log inside this container. Change it only if RESV_LOG_DIR was moved."
+    },
+    {
+      "id": "api_url",
+      "label": "Dispatcharr URL",
+      "type": "string",
+      "default": "http://127.0.0.1:9191",
+      "help_text": "Reached from inside the container. Change it only on a non-standard port."
+    }
+  ],
+  "actions": [
+    {
+      "id": "apply",
+      "label": "Apply settings",
+      "description": "Applies the settings above and starts the watcher.",
+      "button_label": "Apply",
+      "button_variant": "filled"
+    },
+    {
+      "id": "status",
+      "label": "Check status",
+      "description": "Reports whether the watcher is running and what it changed recently.",
+      "button_label": "Check",
+      "button_variant": "default"
+    },
+    {
+      "id": "test",
+      "label": "Replay the log",
+      "description": "Runs the current thresholds over the whole log without changing anything.",
+      "button_label": "Replay",
+      "button_variant": "default"
+    },
+    {
+      "id": "restart",
+      "label": "Restart watcher",
+      "description": "Starts the watcher again if it is down.",
+      "button_label": "Restart",
+      "button_variant": "default",
+      "events": [
+        "channel_start"
+      ]
+    },
+    {
+      "id": "remove",
+      "label": "Stop watcher",
+      "description": "Stops the watcher and leaves every channel on its current source.",
+      "button_label": "Stop",
+      "button_variant": "default",
+      "button_color": "red",
+      "confirm": {
+        "required": true,
+        "title": "Stop the watcher?",
+        "message": "Underfed sources will no longer be moved to the next source in the chain."
+      }
+    }
+  ]
+}
