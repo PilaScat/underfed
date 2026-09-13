@@ -50,6 +50,49 @@ def test_a_source_that_recovers_and_starves_again_triggers_twice():
     assert len(feed(Detector(QUICK), lines)) == 2
 
 
+def test_a_recovery_shorter_than_stable_after_does_not_restart_the_count():
+    lines = (
+        ticks(0, WARM, healthy)
+        + ticks(WARM, 3, starving)
+        + ticks(WARM + 3, 2, healthy)
+        + ticks(WARM + 5, 1, starving)
+    )
+    verdicts = feed(Detector(QUICK), lines)
+    assert len(verdicts) == 1
+    assert verdicts[0].seconds == 5 * 15
+
+
+def test_a_recovery_that_lasts_stable_after_restarts_the_count():
+    lines = (
+        ticks(0, WARM, healthy)
+        + ticks(WARM, 3, starving)
+        + ticks(WARM + 3, 13, healthy)
+        + ticks(WARM + 16, 1, starving)
+    )
+    assert feed(Detector(QUICK), lines) == []
+
+
+def test_stable_after_at_zero_restarts_the_count_at_the_first_healthy_sample():
+    at_once = Thresholds(ratio=0.70, confirm_seconds=45, warmup_seconds=60, stable_seconds=0)
+    lines = (
+        ticks(0, WARM, healthy)
+        + ticks(WARM, 3, starving)
+        + ticks(WARM + 3, 1, healthy)
+        + ticks(WARM + 4, 1, starving)
+    )
+    assert feed(Detector(at_once), lines) == []
+
+
+def test_a_sample_without_a_trustworthy_content_rate_does_not_restart_the_count():
+    lines = (
+        ticks(0, WARM, healthy)
+        + ticks(WARM, 3, starving)
+        + [line(tick, cushion=0, inbound=0.1, crate=0.2) for tick in range(WARM + 3, WARM + 5)]
+        + ticks(WARM + 5, 1, starving)
+    )
+    assert len(feed(Detector(QUICK), lines)) == 1
+
+
 def test_a_continuing_shortfall_repeats_at_the_confirmation_interval():
     verdicts = feed(Detector(QUICK), ticks(0, WARM, healthy) + ticks(WARM, 30, starving))
     assert len(verdicts) > 1

@@ -91,7 +91,6 @@ class Detector:
         state.last_sample = sample
 
         if sample.crate_mbps < self.thresholds.min_crate_mbps:
-            self._recover(state, sample.at)
             return None
 
         if not self._is_starving(sample):
@@ -125,14 +124,11 @@ class Detector:
         return sample.ratio < self.thresholds.ratio and sample.cushion_seconds == 0
 
     def _recover(self, state: FeedState, at: float) -> None:
-        state.starving_since = None
-        state.reported_at = None
         if state.healthy_since is None:
             state.healthy_since = at
-
-    def settled_since(self, feed: str) -> float | None:
-        state = self.feeds.get(feed)
-        return None if state is None else state.healthy_since
+        if at - state.healthy_since >= self.thresholds.stable_seconds:
+            state.starving_since = None
+            state.reported_at = None
 
     def snapshot(self, now: float) -> list[dict]:
         rows = []

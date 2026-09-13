@@ -35,7 +35,7 @@ changes nothing. Read the journal under Check status, then turn it off.
 | Confirm for | How long the shortfall must last before acting. Short dips recover on their own |
 | Switches per hour | Per channel. Stops it bouncing between two sources that are both weak |
 | Ignore first | Right after a channel opens the measured content rate is not trustworthy yet |
-| Stable after | A source that holds up this long is treated as recovered |
+| Stable after | A source that holds up this long is treated as recovered. A shorter recovery keeps the shortfall counting, so a source that flickers is still caught |
 | Excluded channels | One channel name per line |
 | reservoarr log | Where reservoarr writes `delaybuf.log`. Change it only if `RESV_LOG_DIR` was moved |
 | Dispatcharr URL | Reached from inside the container |
