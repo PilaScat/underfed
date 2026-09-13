@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 PLUGIN_NAME = "Underfed"
-PLUGIN_VERSION = "0.1.0"
+PLUGIN_VERSION = "0.2.0"
 PLUGIN_DESCRIPTION = (
     "Moves a channel to its next source when the provider keeps delivering the stream, "
     "but at a fraction of the bitrate the content needs."
