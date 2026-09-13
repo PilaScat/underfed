@@ -16,9 +16,12 @@ class FakeClient:
         self._active = active
         self._catalogue = catalogue
         self._fails = fails
+        self.breaks = False
         self.switched: list[str] = []
 
     def active(self) -> dict:
+        if self.breaks:
+            raise ValueError("invalid literal for int() with base 10: 'abc'")
         return dict(self._active)
 
     def catalogue(self) -> Catalogue:
@@ -161,6 +164,22 @@ def test_a_failed_call_is_recorded_and_not_counted_as_a_switch(tmp_path: Path):
     assert client.switched == []
     assert events(watcher)[-1]["event"] == "failed"
     assert len(watcher.switches["uuid-uno"]) == 0
+
+
+def test_an_unexpected_error_is_recorded_once_and_the_watcher_goes_on(tmp_path: Path):
+    watcher, client = build(tmp_path, streaming(), chain_with_alternative())
+    client.breaks = True
+    for _ in range(3):
+        watcher._status_at = 0.0
+        watcher.step()
+    errors = [row for row in events(watcher) if row["event"] == "error"]
+    assert len(errors) == 1
+    assert "ValueError" in errors[0]["detail"]
+    client.breaks = False
+    watcher._status_at = 0.0
+    watcher.step()
+    starve(watcher)
+    assert client.switched == ["uuid-uno"]
 
 
 def test_the_journal_carries_the_numbers_that_justify_the_move(tmp_path: Path):

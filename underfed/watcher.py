@@ -65,6 +65,7 @@ class Watcher:
         self.switches: dict[str, deque[float]] = defaultdict(deque)
         self._catalogue_at = 0.0
         self._status_at = 0.0
+        self._last_error = ""
         self._running = True
 
     def stop(self, *_: object) -> None:
@@ -79,12 +80,21 @@ class Watcher:
             confirm_seconds=self.options.confirm_seconds,
         )
         while self._running:
-            self._refresh()
-            for line in self.tailer.read():
-                self._consume(line)
+            self.step()
             time.sleep(POLL_INTERVAL_SECONDS)
         self.journal.write("stopped")
         return 0
+
+    def step(self) -> None:
+        try:
+            self._refresh()
+            for line in self.tailer.read():
+                self._consume(line)
+        except Exception as error:
+            detail = f"{type(error).__name__}: {error}"
+            if detail != self._last_error:
+                self.journal.write("error", detail=detail)
+            self._last_error = detail
 
     def _refresh(self) -> None:
         now = time.monotonic()

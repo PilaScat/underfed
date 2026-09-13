@@ -53,7 +53,7 @@ LOG_PATH = RUNTIME_DIR / "watcher.log"
 
 DETACHING_REASONS = frozenset({"disable", "delete"})
 ACTED_EVENTS = frozenset({"switched", "would_switch"})
-FAILED_EVENTS = frozenset({"failed", "api_error"})
+FAILED_EVENTS = frozenset({"failed", "api_error", "error"})
 
 _heartbeat_lock = threading.Lock()
 _heartbeat_checked_at = 0.0
