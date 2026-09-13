@@ -62,7 +62,8 @@ in=1.00Mbps crate=4.44Mbps in_total=1589MB reconnects=2 ccerr=1 ...
 
 `crate` is what the picture needs. `in` is what the provider is sending. `cushion` is how
 many seconds of stream are left in hand. When `in` sits well under `crate` and the cushion
-has reached zero, the source is being starved and the viewer is about to see it.
+has reached zero, the source is being starved and the viewer is about to see it. A feed whose
+`crate` is under 0.5 Mbps is never judged: a content rate that low is not trustworthy.
 
 The watcher follows that file, and when a feed stays under the threshold for the
 confirmation window it calls `POST /proxy/ts/next_stream/<uuid>`, which is the same thing
@@ -72,6 +73,7 @@ entry in its chain and the viewer keeps watching.
 It refuses to act when any of these is true:
 
 - the channel is not streaming, or nobody is watching it
+- the channel is in Excluded channels
 - the source has been running for less than the warm-up window, where `crate` is still settling
 - the channel has already been switched too often this hour
 - the next entry in the chain is the fallback slate
