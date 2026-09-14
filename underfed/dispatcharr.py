@@ -18,6 +18,13 @@ def feed_of(url: object) -> str:
     return path.rsplit("/", 1)[-1]
 
 
+def local_path(url: object) -> str:
+    if not url:
+        return ""
+    parts = urllib.parse.urlparse(str(url))
+    return f"{parts.path}?{parts.query}" if parts.query else parts.path
+
+
 @dataclass(frozen=True)
 class ActiveChannel:
     uuid: str
@@ -121,12 +128,19 @@ class Client:
         return catalogue
 
     def _collect(self, path: str) -> list[dict]:
-        payload = self._request(path)
-        if isinstance(payload, dict):
-            payload = payload.get("results", [])
-        if not isinstance(payload, list):
-            return []
-        return [row for row in payload if isinstance(row, dict)]
+        rows: list[dict] = []
+        requested: set[str] = set()
+        while path and path not in requested:
+            requested.add(path)
+            payload = self._request(path)
+            if isinstance(payload, list):
+                page, path = payload, ""
+            elif isinstance(payload, dict):
+                page, path = payload.get("results") or [], local_path(payload.get("next"))
+            else:
+                break
+            rows.extend(row for row in page if isinstance(row, dict))
+        return rows
 
     def next_stream(self, uuid: str) -> None:
         self._request(f"/proxy/ts/next_stream/{uuid}", method="POST")
