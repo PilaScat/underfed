@@ -18,6 +18,10 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
 - **Thresholds**: below 70% of `crate` with `cushion=0` for 45 s, after a 60 s warm-up, at most
   2 switches an hour per channel. A shortfall ends only after Stable after (180 s) of recovery,
   so a flickering source is still caught (0.2.0). Lines with `crate` under 0.5 Mbps are ignored.
+  A 30 s confirmation was tried on the replay of the logs since 30 August 2026: about 15 s
+  earlier on real starvation, but it also fired on dips that heal on their own within 15-30 s,
+  healthy reference feeds included. Every switch costs a hitch and one of the two an hour, so it
+  stays 45 s.
 - **The reference evening** is 7-8 September 2026 (UTC), kept in
   `tests/fixtures/delaybuf-2026-09-07-08.log.gz`: 45 triggers at Stable after 0, all on 202096,
   94281, 202121 and 202099; 79 at 180, one of them on 272355 at 17:57, which had the cushion
@@ -36,6 +40,9 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
   `apps/connect/models.py:SUPPORTED_EVENTS` reach a plugin (19 in 0.31.0).
 - The tailer compares the first bytes of the log as well as `(device, inode)`: on Linux a file
   replaced in place can keep its inode.
+- "Never" is `-inf`, not 0, next to `time.monotonic()`: the monotonic clock starts at boot, so
+  for the first 15 minutes after a host restart a 0 looked recent and the chains were never read
+  (fixed in 0.3.1).
 - `next_stream` goes through even with the provider at its connection limit when the channel is
   already on that M3U profile.
 - Importing a zip with `overwrite=true` replaces the folder, `.runtime/` included: copy it out
