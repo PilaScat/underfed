@@ -63,8 +63,8 @@ class Watcher:
         self.catalogue = Catalogue()
         self.active: dict[str, object] = {}
         self.switches: dict[str, deque[float]] = defaultdict(deque)
-        self._catalogue_at = 0.0
-        self._status_at = 0.0
+        self._catalogue_at = float("-inf")
+        self._status_at = float("-inf")
         self._last_error = ""
         self._running = True
 
@@ -172,7 +172,7 @@ class Watcher:
 
         self.switches[uuid].append(time.time())
         self.active.pop(verdict.feed, None)
-        self._status_at = 0.0
+        self._status_at = float("-inf")
         self.journal.write("switched", channel=name, to=following.name, **self._facts(verdict))
 
     def _following(self, uuid: str, feed: str) -> ChainEntry | None:

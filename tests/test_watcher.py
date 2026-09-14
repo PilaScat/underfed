@@ -204,14 +204,28 @@ def test_an_unexpected_error_is_recorded_once_and_the_watcher_goes_on(tmp_path: 
     watcher, client = build(tmp_path, streaming(), chain_with_alternative())
     client.breaks = True
     for _ in range(3):
-        watcher._status_at = 0.0
+        watcher._status_at = float("-inf")
         watcher.step()
     errors = [row for row in events(watcher) if row["event"] == "error"]
     assert len(errors) == 1
     assert "ValueError" in errors[0]["detail"]
     client.breaks = False
-    watcher._status_at = 0.0
+    watcher._status_at = float("-inf")
     watcher.step()
+    starve(watcher)
+    assert client.switched == ["uuid-uno"]
+
+
+def test_a_watcher_started_right_after_boot_reads_status_and_chains_at_once(
+    tmp_path: Path, monkeypatch
+):
+    (tmp_path / "delaybuf.log").write_text("", encoding="utf-8")
+    client = FakeClient(streaming(), chain_with_alternative())
+    monkeypatch.setattr("underfed.watcher.time.monotonic", lambda: 12.0)
+    watcher = Watcher(options(tmp_path), client)  # type: ignore[arg-type]
+    watcher.step()
+    assert client.catalogue_calls == 1
+    assert watcher.active
     starve(watcher)
     assert client.switched == ["uuid-uno"]
 

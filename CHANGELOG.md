@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 — 2026-09-14
+
+- A watcher started within 15 minutes of the host booting reads the channel chains at once.
+  It measured their age from a monotonic clock that starts at boot, with zero as "never
+  read", so on a fresh host the first read waited until the clock passed 15 minutes, and
+  until then every starving channel was skipped with "no source after this one". The CI
+  runners, freshly booted, showed it in the 0.3.0 tests.
+
 ## 0.3.0 — 2026-09-14
 
 - A source that starves in the middle of a session is caught sooner. The ingest is now the
