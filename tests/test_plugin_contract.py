@@ -219,6 +219,38 @@ def test_the_settings_become_the_watcher_command_line(loaded_module):
     assert "--observe-only" not in arguments
 
 
+@pytest.fixture
+def restarting(loaded_module, isolated_runtime, monkeypatch):
+    started: list[list[str]] = []
+    monkeypatch.setattr(loaded_module, "_running_inside_uwsgi", lambda: True)
+    monkeypatch.setattr(loaded_module.Plugin, "_heartbeat_due", lambda self: True)
+    monkeypatch.setattr(loaded_module.process, "is_running", lambda *_a: False)
+    monkeypatch.setattr(
+        loaded_module.Plugin, "_start", lambda self, arguments, key: started.append(arguments)
+    )
+    return started
+
+
+def test_a_restart_uses_the_settings_of_the_last_apply(loaded_module, restarting):
+    applied = loaded_module.Plugin()._arguments({"ratio_percent": 65})
+    loaded_module.state_module.remember(
+        loaded_module.STATE_PATH, {"applied": True, "signature": json.dumps(applied)}, []
+    )
+    settings = {"api_key": "k", "ratio_percent": 80}
+    result = loaded_module.Plugin().run("restart", {}, {"settings": settings})
+    assert result["message"] == "Watcher restarted."
+    assert restarting == [applied]
+
+
+def test_a_restart_without_an_applied_signature_uses_the_saved_settings(
+    loaded_module, restarting
+):
+    loaded_module.state_module.remember(loaded_module.STATE_PATH, {"applied": True}, [])
+    settings = {"api_key": "k", "ratio_percent": 80}
+    loaded_module.Plugin().run("restart", {}, {"settings": settings})
+    assert restarting == [loaded_module.Plugin()._arguments(settings)]
+
+
 def test_observing_only_is_the_default_the_watcher_receives(loaded_module):
     arguments = loaded_module.Plugin()._arguments({})
     assert "--observe-only" in arguments

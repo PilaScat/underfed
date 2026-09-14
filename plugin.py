@@ -91,6 +91,16 @@ def _as_text(value: object, fallback: str) -> str:
     return text or fallback
 
 
+def _applied_arguments(state: dict) -> list[str] | None:
+    try:
+        arguments = json.loads(str(state.get("signature") or ""))
+    except ValueError:
+        return None
+    if isinstance(arguments, list) and arguments and all(isinstance(a, str) for a in arguments):
+        return arguments
+    return None
+
+
 def _lines(value: object) -> list[str]:
     if not value:
         return []
@@ -238,7 +248,7 @@ class Plugin:
         key = _as_text(settings.get("api_key"), "")
         if not key:
             return {"status": "error", "message": "An API key is required."}
-        self._start(self._arguments(settings), key)
+        self._start(_applied_arguments(state) or self._arguments(settings), key)
         return {"status": "ok", "message": "Watcher restarted."}
 
     def _remove(self, context: dict) -> dict:

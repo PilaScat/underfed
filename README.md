@@ -47,7 +47,7 @@ changes nothing. Read the journal under Check status, then turn it off.
 | Apply settings | Starts the watcher, or restarts it with the new settings. Saving a setting changes nothing until Apply runs |
 | Check status | Whether the watcher is running, and the journal of what it switched, skipped and failed |
 | Replay the log | Runs the current thresholds over the whole log and reports which sources would have been switched. Nothing is touched, so it is the safe way to try a threshold before it goes live |
-| Restart watcher | Starts it again if it is down. Also runs by itself when a channel starts, at most once a minute |
+| Restart watcher | Starts it again if it is down, with the settings of the last Apply. Also runs by itself when a channel starts, at most once a minute |
 | Stop watcher | Stops it. Channels keep whatever source they are on |
 
 ## How it works
