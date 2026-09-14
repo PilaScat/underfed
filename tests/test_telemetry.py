@@ -46,6 +46,13 @@ def test_a_missing_reconnects_counter_reads_as_zero():
     sample = parse(trimmed)
     assert sample is not None
     assert sample.reconnects == 0
+    assert sample.total_mb is None
+
+
+def test_the_lifetime_ingest_counter_is_read():
+    sample = parse(REAL)
+    assert sample is not None
+    assert sample.total_mb == 1589
 
 
 def test_timestamps_carry_their_offset():

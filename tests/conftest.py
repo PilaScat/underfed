@@ -24,11 +24,13 @@ def line(
     out: float = 1.0,
     buf: float = 0.1,
     reconnects: int = 2,
+    total: int | None = None,
 ) -> str:
+    counter = f"in_total={total}MB " if total is not None else ""
     return (
         f"{stamp(tick)} [{feed}] cushion={cushion}s(pcr) buf={buf}MB "
         f"out={out:.2f}Mbps in={inbound:.2f}Mbps crate={crate:.2f}Mbps "
-        f"in_total=1580MB reconnects={reconnects} ccerr=1 pcrrej=0 disc=1 sync=1 pcr_back=0"
+        f"{counter}reconnects={reconnects} ccerr=1 pcrrej=0 disc=1 sync=1 pcr_back=0"
     )
 
 

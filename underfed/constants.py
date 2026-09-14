@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 PLUGIN_NAME = "Underfed"
-PLUGIN_VERSION = "0.2.1"
+PLUGIN_VERSION = "0.3.0"
 PLUGIN_DESCRIPTION = (
     "Moves a channel to its next source when the provider keeps delivering the stream, "
     "but at a fraction of the bitrate the content needs."
@@ -22,6 +22,8 @@ DEFAULT_STABLE_SECONDS = 180
 
 MIN_TRUSTED_CRATE_MBPS = 0.5
 SAMPLE_GAP_TOLERANCE_SECONDS = 45.0
+INGEST_WINDOW_SECONDS = 45.0
+INGEST_MIN_SPAN_SECONDS = 30.0
 
 POLL_INTERVAL_SECONDS = 2.0
 MAPPING_REFRESH_SECONDS = 900.0

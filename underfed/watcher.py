@@ -180,6 +180,7 @@ class Watcher:
             "feed": verdict.feed,
             "percent": verdict.percent,
             "in_mbps": round(verdict.in_mbps, 2),
+            "measure": verdict.measure,
             "crate_mbps": round(verdict.crate_mbps, 2),
             "starving_seconds": round(verdict.seconds),
         }

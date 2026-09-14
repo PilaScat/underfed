@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from conftest import healthy, line, starving, ticks
+from conftest import STEP_SECONDS, healthy, line, starving, ticks
 
 from underfed.detector import Detector, Thresholds
 from underfed.telemetry import parse
@@ -153,6 +153,67 @@ def test_the_snapshot_reports_each_source_it_has_seen():
     assert [row["feed"] for row in rows] == ["202121.ts"]
     assert rows[0]["percent"] == 23
     assert rows[0]["starving_for"] is not None
+
+
+def counted(start: int, count: int, inbound_by_counter: float, total: float, **kwargs) -> list:
+    rows = []
+    for index in range(count):
+        total += inbound_by_counter * STEP_SECONDS / 8
+        rows.append(line(start + index, total=round(total), **kwargs))
+    return rows
+
+
+def test_the_ingest_comes_from_the_lifetime_counter_once_it_spans_thirty_seconds():
+    detector = Detector(QUICK)
+    lines = counted(0, 6, 4.4, 1000, cushion=28, inbound=4.4)
+    lines += counted(6, 3, 1.0, 1000 + 6 * 4.4 * STEP_SECONDS / 8, cushion=0, inbound=4.0)
+    feed(detector, lines)
+    state = detector.feeds["202121.ts"]
+    assert state.measure == "in_total"
+    assert state.ingest_mbps < 2.5
+
+
+def test_a_drop_the_average_hides_triggers_from_the_counter():
+    base = 1000 + WARM * 4.4 * STEP_SECONDS / 8
+    lines = counted(0, WARM, 4.4, 1000, cushion=28, inbound=4.4)
+    lines += counted(WARM, 7, 1.0, base, cushion=0, inbound=4.0)
+    verdicts = feed(Detector(QUICK), lines)
+    assert len(verdicts) == 1
+    assert verdicts[0].measure == "in_total"
+    assert verdicts[0].percent < 60
+
+
+def test_the_same_drop_read_off_the_average_alone_is_missed():
+    lines = ticks(0, WARM, healthy) + [
+        line(tick, cushion=0, inbound=4.0) for tick in range(WARM, WARM + 7)
+    ]
+    assert feed(Detector(QUICK), lines) == []
+
+
+def test_a_counter_that_goes_back_means_a_new_process_and_the_average_holds_meanwhile():
+    lines = counted(0, WARM, 4.4, 1000, cushion=28, inbound=4.4)
+    lines += [line(WARM, cushion=0, inbound=1.0, total=12)]
+    detector = Detector(QUICK)
+    feed(detector, lines)
+    state = detector.feeds["202121.ts"]
+    assert state.measure == "in"
+    assert state.ingest_mbps == 1.0
+
+
+def test_a_steady_counter_at_the_content_rate_never_triggers():
+    lines = counted(0, 40, 4.44, 1000, cushion=0, inbound=1.0)
+    assert feed(Detector(QUICK), lines) == []
+
+
+def test_the_snapshot_says_which_measure_it_used():
+    detector = Detector(QUICK)
+    lines = counted(0, 4, 4.4, 1000, cushion=28, inbound=4.4)
+    feed(detector, lines)
+    last = parse(lines[-1])
+    assert last is not None
+    row = detector.snapshot(now=last.at)[0]
+    assert row["measure"] == "in_total"
+    assert abs(row["in_mbps"] - 4.4) < 0.3
 
 
 def test_thresholds_come_from_the_plugin_settings():

@@ -13,6 +13,7 @@ LINE = re.compile(
     r"out=(?P<out>[\d.]+)Mbps\s+"
     r"in=(?P<inbound>[\d.]+)Mbps\s+"
     r"crate=(?P<crate>[\d.]+)Mbps"
+    r"(?:\s+in_total=(?P<total>\d+)MB)?"
     r"(?:.*?\breconnects=(?P<reconnects>\d+))?"
 )
 
@@ -28,6 +29,7 @@ class Sample:
     in_mbps: float
     crate_mbps: float
     reconnects: int
+    total_mb: int | None = None
 
     @property
     def ratio(self) -> float:
@@ -54,6 +56,7 @@ def parse(line: str) -> Sample | None:
         in_mbps=float(match["inbound"]),
         crate_mbps=float(match["crate"]),
         reconnects=int(match["reconnects"] or 0),
+        total_mb=int(match["total"]) if match["total"] is not None else None,
     )
 
 

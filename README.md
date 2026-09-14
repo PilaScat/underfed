@@ -60,10 +60,14 @@ it is pulling:
 in=1.00Mbps crate=4.44Mbps in_total=1589MB reconnects=2 ccerr=1 ...
 ```
 
-`crate` is what the picture needs. `in` is what the provider is sending. `cushion` is how
-many seconds of stream are left in hand. When `in` sits well under `crate` and the cushion
-has reached zero, the source is being starved and the viewer is about to see it. A feed whose
-`crate` is under 0.5 Mbps is never judged: a content rate that low is not trustworthy.
+`crate` is what the picture needs. `cushion` is how many seconds of stream are left in hand.
+What the provider is sending is read off `in_total`, the bytes the feed has taken in so far:
+the difference over the last 45 seconds. `in` says the same thing averaged over two minutes,
+so after a sudden drop it lags by a minute or more; it is used only until a feed has 30
+seconds of `in_total` behind it, and for lines without the counter. When the ingest sits well
+under `crate` and the cushion has reached zero, the source is being starved and the viewer is
+about to see it. A feed whose `crate` is under 0.5 Mbps is never judged: a content rate that
+low is not trustworthy.
 
 The watcher follows that file, and when a feed stays under the threshold for the
 confirmation window it calls `POST /proxy/ts/next_stream/<uuid>`, which is the same thing

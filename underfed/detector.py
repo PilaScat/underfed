@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 
 from .constants import (
@@ -7,10 +8,15 @@ from .constants import (
     DEFAULT_RATIO_PERCENT,
     DEFAULT_STABLE_SECONDS,
     DEFAULT_WARMUP_SECONDS,
+    INGEST_MIN_SPAN_SECONDS,
+    INGEST_WINDOW_SECONDS,
     MIN_TRUSTED_CRATE_MBPS,
     SAMPLE_GAP_TOLERANCE_SECONDS,
 )
 from .telemetry import Sample
+
+MEASURE_TOTAL = "in_total"
+MEASURE_AVERAGE = "in"
 
 
 @dataclass(frozen=True)
@@ -45,6 +51,7 @@ class Verdict:
     starving_since: float
     in_mbps: float
     crate_mbps: float
+    measure: str = MEASURE_AVERAGE
 
     @property
     def seconds(self) -> float:
@@ -72,6 +79,26 @@ class FeedState:
     healthy_since: float | None = None
     reported_at: float | None = None
     verdicts: int = 0
+    totals: deque[tuple[float, int]] = field(default_factory=deque)
+    ingest_mbps: float = 0.0
+    measure: str = MEASURE_AVERAGE
+
+
+def ingest(state: FeedState, sample: Sample) -> tuple[float, str]:
+    totals = state.totals
+    if sample.total_mb is None:
+        totals.clear()
+        return sample.in_mbps, MEASURE_AVERAGE
+    if totals and sample.total_mb < totals[-1][1]:
+        totals.clear()
+    totals.append((sample.at, sample.total_mb))
+    while len(totals) >= 2 and totals[1][0] <= sample.at - INGEST_WINDOW_SECONDS:
+        totals.popleft()
+    first_at, first_total = totals[0]
+    span = sample.at - first_at
+    if span < INGEST_MIN_SPAN_SECONDS:
+        return sample.in_mbps, MEASURE_AVERAGE
+    return (sample.total_mb - first_total) * 8 / span, MEASURE_TOTAL
 
 
 @dataclass
@@ -82,18 +109,19 @@ class Detector:
     def observe(self, sample: Sample) -> Verdict | None:
         state = self.feeds.get(sample.feed)
         if state is None or sample.at - state.last_at > SAMPLE_GAP_TOLERANCE_SECONDS:
-            self.feeds[sample.feed] = FeedState(
-                first_seen=sample.at, last_at=sample.at, last_sample=sample
-            )
+            state = FeedState(first_seen=sample.at, last_at=sample.at, last_sample=sample)
+            state.ingest_mbps, state.measure = ingest(state, sample)
+            self.feeds[sample.feed] = state
             return None
 
         state.last_at = sample.at
         state.last_sample = sample
+        state.ingest_mbps, state.measure = ingest(state, sample)
 
         if sample.crate_mbps < self.thresholds.min_crate_mbps:
             return None
 
-        if not self._is_starving(sample):
+        if not self._is_starving(state, sample):
             self._recover(state, sample.at)
             return None
 
@@ -116,12 +144,16 @@ class Detector:
             feed=sample.feed,
             at=sample.at,
             starving_since=state.starving_since,
-            in_mbps=sample.in_mbps,
+            in_mbps=state.ingest_mbps,
             crate_mbps=sample.crate_mbps,
+            measure=state.measure,
         )
 
-    def _is_starving(self, sample: Sample) -> bool:
-        return sample.ratio < self.thresholds.ratio and sample.cushion_seconds == 0
+    def _is_starving(self, state: FeedState, sample: Sample) -> bool:
+        if sample.crate_mbps <= 0:
+            return False
+        ratio = state.ingest_mbps / sample.crate_mbps
+        return ratio < self.thresholds.ratio and sample.cushion_seconds == 0
 
     def _recover(self, state: FeedState, at: float) -> None:
         if state.healthy_since is None:
@@ -134,13 +166,15 @@ class Detector:
         rows = []
         for feed, state in sorted(self.feeds.items()):
             sample = state.last_sample
+            crate = sample.crate_mbps
             rows.append(
                 {
                     "feed": feed,
                     "age": round(now - state.last_at, 1),
-                    "percent": round(100 * sample.ratio),
-                    "in_mbps": sample.in_mbps,
-                    "crate_mbps": sample.crate_mbps,
+                    "percent": round(100 * state.ingest_mbps / crate) if crate > 0 else 100,
+                    "in_mbps": round(state.ingest_mbps, 2),
+                    "measure": state.measure,
+                    "crate_mbps": crate,
                     "cushion": sample.cushion_seconds,
                     "starving_for": (
                         None

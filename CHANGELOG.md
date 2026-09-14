@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0 — 2026-09-14
+
+- A source that starves in the middle of a session is caught about a minute sooner. The
+  ingest is now the difference of reservoarr's `in_total` over the last 45 seconds instead of
+  its `in`, which is a two-minute average: after a sharp drop `in` needed about 50 seconds to
+  fall under 70% of `crate`, so with the 45-second confirmation the switch came some 100
+  seconds after the drop. `in` still decides for the first 30 seconds of a feed, after the
+  counter goes back (a new reservoarr process) and on lines without the counter; the
+  journal's `measure` says which of the two decided.
+- On the reference evening of 7-8 September the triggers stay on the four starved feeds at
+  Stable after 0 (45, was 44) and reach one more at the default 180: 272355 at 17:57, which had
+  the cushion empty and fed the player 1.64 of 4.6 Mbps while `in` still read 3.6 (79, was 58).
+  On every telemetry line since 30 August the first trigger of each known episode comes
+  between 0 and 894 seconds sooner: 336 seconds on Sky Sport 252 on 10 September, 272 on
+  202121 on 8 September.
+
 ## 0.2.1 — 2026-09-14
 
 - Restart watcher, by hand or on a channel start, uses the settings of the last Apply, as

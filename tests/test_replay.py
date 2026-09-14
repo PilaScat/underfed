@@ -13,11 +13,15 @@ from underfed.replay import run
 QUICK = Thresholds(ratio=0.70, confirm_seconds=45, warmup_seconds=60, stable_seconds=180)
 EIGHT_SEPTEMBER = Path(__file__).parent / "fixtures" / "delaybuf-2026-09-07-08.log.gz"
 STARVED_FEEDS = {"202096.ts", "94281.ts", "202121.ts", "202099.ts"}
+STARVED_AT_1757 = "272355.ts"
 
 
-@pytest.mark.parametrize(("stable_seconds", "triggers"), [(0, 44), (180, 58)])
+@pytest.mark.parametrize(
+    ("stable_seconds", "triggers", "feeds"),
+    [(0, 45, STARVED_FEEDS), (180, 79, STARVED_FEEDS | {STARVED_AT_1757})],
+)
 def test_the_evening_of_8_september_triggers_only_on_the_starved_feeds(
-    tmp_path: Path, stable_seconds: int, triggers: int
+    tmp_path: Path, stable_seconds: int, triggers: int, feeds: set[str]
 ):
     log = tmp_path / "delaybuf.log"
     log.write_bytes(gzip.decompress(EIGHT_SEPTEMBER.read_bytes()))
@@ -27,8 +31,23 @@ def test_the_evening_of_8_september_triggers_only_on_the_starved_feeds(
     outcome = run(log, thresholds)
     per_feed = Counter(hit.feed for hit in outcome.hits)
     assert len(outcome.feeds) == 26
-    assert set(per_feed) == STARVED_FEEDS
+    assert set(per_feed) == feeds
     assert sum(per_feed.values()) == triggers
+
+
+def test_the_feed_caught_at_17_57_was_feeding_the_player_below_half_the_content_rate(
+    tmp_path: Path,
+):
+    log = tmp_path / "delaybuf.log"
+    log.write_bytes(gzip.decompress(EIGHT_SEPTEMBER.read_bytes()))
+    hits = [hit for hit in run(log, Thresholds()).hits if hit.feed == STARVED_AT_1757]
+    assert len(hits) == 1
+    assert hits[0].percent < 60
+    lines = [
+        line for line in log.read_text().splitlines()
+        if f"[{STARVED_AT_1757}]" in line and "cushion=0s" in line
+    ]
+    assert len(lines) >= 4
 
 
 def write(tmp_path: Path, lines: list[str]) -> Path:

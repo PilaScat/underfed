@@ -1,6 +1,6 @@
 {
   "name": "Underfed",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Moves a channel to its next source when the provider keeps delivering the stream, but at a fraction of the bitrate the content needs.",
   "author": "PilaScat",
   "license": "MIT",
@@ -28,7 +28,7 @@
       "label": "Trigger below (% of content rate)",
       "type": "number",
       "default": 70,
-      "help_text": "reservoarr reports how many bits arrive (in) against how many the picture needs (crate). Below this share, with the cushion empty, the source counts as underfed."
+      "help_text": "reservoarr reports how many bytes have arrived (in_total) and how many bits the picture needs (crate). Below this share over the last 45 seconds, with the cushion empty, the source counts as underfed."
     },
     {
       "id": "confirm_seconds",
