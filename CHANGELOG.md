@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.2 — 2026-09-14
+
+- The hourly switch limit holds across a restart of the watcher. The switches of the last
+  hour lived only in memory, so an Apply, a plugin reload or a restart of Dispatcharr let a
+  channel be switched again at once, past Switches per hour. They are now kept in
+  `.runtime/switches.json` and read back when the watcher starts. The review of the registry
+  submission found it.
+- README: a manual install unzips the release into `/data/plugins`, since the archive holds
+  the `underfed` folder; Restart watcher reads the API key as saved, not as applied; a typo
+  in the Trigger below row.
+
 ## 0.3.1 — 2026-09-14
 
 - A watcher started within 15 minutes of the host booting reads the channel chains at once.
