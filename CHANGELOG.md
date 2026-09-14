@@ -15,6 +15,9 @@
   On every telemetry line since 30 August the first trigger of each known episode comes
   between 0 and 894 seconds sooner: 336 seconds on Sky Sport 252 on 10 September, 272 on
   202121 on 8 September.
+- A channel created after the watcher last read the chains is looked up again when it
+  starves, at most once a minute. Before, it was skipped with "no source after this one"
+  for up to 15 minutes.
 
 ## 0.2.1 — 2026-09-14
 

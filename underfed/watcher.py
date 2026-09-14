@@ -22,7 +22,7 @@ from .constants import (
     POLL_INTERVAL_SECONDS,
 )
 from .detector import Detector, Thresholds, Verdict
-from .dispatcharr import ApiError, Catalogue, Client
+from .dispatcharr import ApiError, Catalogue, ChainEntry, Client
 from .journal import Journal
 from .tailer import Tailer
 
@@ -143,7 +143,7 @@ class Watcher:
             )
             return
 
-        following = self.catalogue.next_entry(uuid, verdict.feed)
+        following = self._following(uuid, verdict.feed)
         if following is None:
             self.journal.write(
                 "skipped", reason="no source after this one", channel=name, **self._facts(verdict)
@@ -174,6 +174,19 @@ class Watcher:
         self.active.pop(verdict.feed, None)
         self._status_at = 0.0
         self.journal.write("switched", channel=name, to=following.name, **self._facts(verdict))
+
+    def _following(self, uuid: str, feed: str) -> ChainEntry | None:
+        following = self.catalogue.next_entry(uuid, feed)
+        now = time.monotonic()
+        if following is not None or now - self._catalogue_at < CATALOGUE_RETRY_SECONDS:
+            return following
+        self._catalogue_at = now
+        try:
+            self.catalogue = self.client.catalogue()
+        except ApiError as error:
+            self.journal.write("api_error", where="catalogue", detail=str(error))
+            return None
+        return self.catalogue.next_entry(uuid, feed)
 
     def _facts(self, verdict: Verdict) -> dict:
         return {

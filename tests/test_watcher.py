@@ -18,6 +18,7 @@ class FakeClient:
         self._fails = fails
         self.breaks = False
         self.switched: list[str] = []
+        self.catalogue_calls = 0
 
     def active(self) -> dict:
         if self.breaks:
@@ -25,6 +26,7 @@ class FakeClient:
         return dict(self._active)
 
     def catalogue(self) -> Catalogue:
+        self.catalogue_calls += 1
         return self._catalogue
 
     def next_stream(self, uuid: str) -> None:
@@ -95,6 +97,22 @@ def test_a_starving_channel_with_viewers_is_moved_to_the_next_source(tmp_path: P
     starve(watcher)
     assert client.switched == ["uuid-uno"]
     assert [row["event"] for row in events(watcher)][-1] == "switched"
+
+
+def test_a_channel_created_after_the_catalogue_was_read_is_looked_up_again(tmp_path: Path):
+    watcher, client = build(tmp_path, streaming(), Catalogue())
+    client._catalogue = chain_with_alternative()
+    starve(watcher)
+    assert client.switched == ["uuid-uno"]
+    assert client.catalogue_calls == 1
+
+
+def test_a_channel_still_unknown_is_not_looked_up_more_than_once_a_minute(tmp_path: Path):
+    watcher, client = build(tmp_path, streaming(), Catalogue())
+    starve(watcher, count=12)
+    assert client.switched == []
+    assert client.catalogue_calls == 1
+    assert events(watcher)[-1]["reason"] == "no source after this one"
 
 
 def test_observe_only_records_the_move_without_making_it(tmp_path: Path):
