@@ -156,6 +156,7 @@ class Watcher:
             return
 
         if self.options.observe_only:
+            self.switches[uuid].append(time.time())
             self.journal.write(
                 "would_switch", channel=name, to=following.name, **self._facts(verdict)
             )

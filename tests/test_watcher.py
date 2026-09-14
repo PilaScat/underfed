@@ -158,6 +158,22 @@ def test_the_hourly_limit_stops_a_channel_bouncing(tmp_path: Path):
     assert any(row.get("reason") == "switch limit reached" for row in events(watcher))
 
 
+def test_observe_only_counts_against_the_hourly_limit_as_live_mode_would(tmp_path: Path):
+    watcher, client = build(
+        tmp_path, streaming(), chain_with_alternative(), max_switches=1, observe_only=True
+    )
+    for round_number in range(3):
+        watcher.active = streaming()
+        for text in ticks(round_number * 200, 5, healthy) + ticks(
+            round_number * 200 + 5, 4, starving
+        ):
+            watcher._consume(text)
+    kinds = [row.get("reason") or row["event"] for row in events(watcher)]
+    assert kinds.count("would_switch") == 1
+    assert "switch limit reached" in kinds
+    assert client.switched == []
+
+
 def test_a_failed_call_is_recorded_and_not_counted_as_a_switch(tmp_path: Path):
     watcher, client = build(tmp_path, streaming(), chain_with_alternative(), fails=True)
     starve(watcher)
