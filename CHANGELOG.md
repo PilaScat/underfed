@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.1 — 2026-09-14
+
+- Restart watcher, by hand or on a channel start, uses the settings of the last Apply, as
+  the README always said. Before, a setting saved but not applied went live at the next
+  channel start.
+- Observe-only counts toward Switches per hour, so its would_switch lines match what live
+  mode would do instead of repeating every 45 seconds.
+- The channel and stream lists are read page by page. Before, only the first page was read,
+  so past 500 channels or 9000 streams the watcher skipped with "no source after this one".
+- The log reader notices a file replaced under the same inode, which Linux allows, instead
+  of reading it from the middle.
+- The evening of 8 September is a test: its telemetry is a fixture, and the replay must
+  find 44 triggers at Stable after 0 and 58 at 180, only on the four starved feeds.
+- The README says what Replay counts and when the warm-up starts. Tests, types, lint and
+  build run in CI; `docs/MEMORY.md` holds the decisions, the deployment traps and the
+  release routine.
+
 ## 0.2.0 — 2026-09-14
 
 - Stable after now counts. A shortfall ends only once the source has held up that long,
