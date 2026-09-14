@@ -2,11 +2,12 @@
 
 ## 0.3.0 — 2026-09-14
 
-- A source that starves in the middle of a session is caught about a minute sooner. The
-  ingest is now the difference of reservoarr's `in_total` over the last 45 seconds instead of
-  its `in`, which is a two-minute average: after a sharp drop `in` needed about 50 seconds to
-  fall under 70% of `crate`, so with the 45-second confirmation the switch came some 100
-  seconds after the drop. `in` still decides for the first 30 seconds of a feed, after the
+- A source that starves in the middle of a session is caught sooner. The ingest is now the
+  difference of reservoarr's `in_total` over the last 45 seconds instead of its `in`, which is
+  a two-minute average: after a sharp drop `in` needed about 50 seconds to fall under 70% of
+  `crate`, so Dispatcharr's own failover got there first, 105 seconds after the drop on the
+  test bench. With 0.3.0 Underfed switched the same feed, dropped to 30%, 79 seconds after the
+  drop: the cushion takes about 25 of them to run out, the confirmation 45. `in` still decides for the first 30 seconds of a feed, after the
   counter goes back (a new reservoarr process) and on lines without the counter; the
   journal's `measure` says which of the two decided.
 - On the reference evening of 7-8 September the triggers stay on the four starved feeds at
