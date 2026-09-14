@@ -26,7 +26,9 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
   triggers, not switches.
 - **The watcher is a detached process** without Django, talking to Dispatcharr over HTTP.
   `restart` is bound to `channel_start` and starts it with the arguments of the last Apply,
-  stored in `.runtime/state.json` as `signature`.
+  stored in `.runtime/state.json` as `signature`; the API key is read from the saved settings.
+- **The hourly limit survives a restart** (0.3.2): the watcher keeps the switches of the last
+  hour in `.runtime/switches.json`, not in the journal, which is trimmed to 50 lines.
 
 ## Traps
 
