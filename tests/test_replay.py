@@ -1,13 +1,34 @@
 from __future__ import annotations
 
+import gzip
+from collections import Counter
 from pathlib import Path
 
+import pytest
 from conftest import healthy, starving, ticks
 
 from underfed.detector import Thresholds
 from underfed.replay import run
 
 QUICK = Thresholds(ratio=0.70, confirm_seconds=45, warmup_seconds=60, stable_seconds=180)
+EIGHT_SEPTEMBER = Path(__file__).parent / "fixtures" / "delaybuf-2026-09-07-08.log.gz"
+STARVED_FEEDS = {"202096.ts", "94281.ts", "202121.ts", "202099.ts"}
+
+
+@pytest.mark.parametrize(("stable_seconds", "triggers"), [(0, 44), (180, 58)])
+def test_the_evening_of_8_september_triggers_only_on_the_starved_feeds(
+    tmp_path: Path, stable_seconds: int, triggers: int
+):
+    log = tmp_path / "delaybuf.log"
+    log.write_bytes(gzip.decompress(EIGHT_SEPTEMBER.read_bytes()))
+    thresholds = Thresholds(
+        ratio=0.70, confirm_seconds=45, warmup_seconds=60, stable_seconds=stable_seconds
+    )
+    outcome = run(log, thresholds)
+    per_feed = Counter(hit.feed for hit in outcome.hits)
+    assert len(outcome.feeds) == 26
+    assert set(per_feed) == STARVED_FEEDS
+    assert sum(per_feed.values()) == triggers
 
 
 def write(tmp_path: Path, lines: list[str]) -> Path:
