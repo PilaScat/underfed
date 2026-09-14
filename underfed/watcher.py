@@ -24,10 +24,13 @@ from .constants import (
 from .detector import Detector, Thresholds, Verdict
 from .dispatcharr import ApiError, Catalogue, ChainEntry, Client
 from .journal import Journal
+from .state import load, save
 from .tailer import Tailer
 
 STATUS_REFRESH_SECONDS = 5.0
 CATALOGUE_RETRY_SECONDS = 60.0
+HOUR_SECONDS = 3600.0
+SWITCHES_FILE = "switches.json"
 
 
 def arguments(argv: list[str] | None = None) -> argparse.Namespace:
@@ -62,7 +65,8 @@ class Watcher:
         self.excluded = {value.strip().casefold() for value in options.exclude if value.strip()}
         self.catalogue = Catalogue()
         self.active: dict[str, object] = {}
-        self.switches: dict[str, deque[float]] = defaultdict(deque)
+        self.switches_path = Path(options.journal).with_name(SWITCHES_FILE)
+        self.switches: dict[str, deque[float]] = defaultdict(deque, self._recall_switches())
         self._catalogue_at = float("-inf")
         self._status_at = float("-inf")
         self._last_error = ""
@@ -160,6 +164,7 @@ class Watcher:
             self.journal.write(
                 "would_switch", channel=name, to=following.name, **self._facts(verdict)
             )
+            self._keep_switches()
             return
 
         try:
@@ -174,6 +179,7 @@ class Watcher:
         self.active.pop(verdict.feed, None)
         self._status_at = float("-inf")
         self.journal.write("switched", channel=name, to=following.name, **self._facts(verdict))
+        self._keep_switches()
 
     def _following(self, uuid: str, feed: str) -> ChainEntry | None:
         following = self.catalogue.next_entry(uuid, feed)
@@ -203,10 +209,36 @@ class Watcher:
 
     def _too_many(self, uuid: str) -> bool:
         recent = self.switches[uuid]
-        cutoff = time.time() - 3600
+        cutoff = time.time() - HOUR_SECONDS
         while recent and recent[0] < cutoff:
             recent.popleft()
         return len(recent) >= max(self.options.max_switches, 0)
+
+    def _recall_switches(self) -> dict[str, deque[float]]:
+        cutoff = time.time() - HOUR_SECONDS
+        recalled = {}
+        for uuid, moments in load(self.switches_path).items():
+            if not isinstance(moments, list):
+                continue
+            recent = sorted(
+                float(moment)
+                for moment in moments
+                if isinstance(moment, int | float) and moment >= cutoff
+            )
+            if recent:
+                recalled[uuid] = deque(recent)
+        return recalled
+
+    def _keep_switches(self) -> None:
+        cutoff = time.time() - HOUR_SECONDS
+        save(
+            self.switches_path,
+            {
+                uuid: [moment for moment in moments if moment >= cutoff]
+                for uuid, moments in self.switches.items()
+                if moments and moments[-1] >= cutoff
+            },
+        )
 
 
 def main(argv: list[str] | None = None) -> int:

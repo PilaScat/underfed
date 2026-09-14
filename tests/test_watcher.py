@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import time
 from argparse import Namespace
 from pathlib import Path
 
@@ -190,6 +192,31 @@ def test_observe_only_counts_against_the_hourly_limit_as_live_mode_would(tmp_pat
     assert kinds.count("would_switch") == 1
     assert "switch limit reached" in kinds
     assert client.switched == []
+
+
+def test_the_hourly_limit_holds_across_a_restart_of_the_watcher(tmp_path: Path):
+    first, client = build(tmp_path, streaming(), chain_with_alternative(), max_switches=1)
+    starve(first)
+    assert client.switched == ["uuid-uno"]
+
+    second, client = build(tmp_path, streaming(), chain_with_alternative(), max_switches=1)
+    starve(second)
+    assert client.switched == []
+    assert events(second)[-1]["reason"] == "switch limit reached"
+
+
+def test_a_switch_older_than_an_hour_is_forgotten_on_restart(tmp_path: Path):
+    stale = time.time() - 3700
+    (tmp_path / "switches.json").write_text(
+        json.dumps({"uuid-uno": [stale], "uuid-due": "broken"}), encoding="utf-8"
+    )
+    watcher, client = build(tmp_path, streaming(), chain_with_alternative(), max_switches=1)
+    assert dict(watcher.switches) == {}
+    starve(watcher)
+    assert client.switched == ["uuid-uno"]
+    assert list(json.loads((tmp_path / "switches.json").read_text(encoding="utf-8"))) == [
+        "uuid-uno"
+    ]
 
 
 def test_a_failed_call_is_recorded_and_not_counted_as_a_switch(tmp_path: Path):
