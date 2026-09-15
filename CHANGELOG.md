@@ -13,6 +13,10 @@
   over those days finds 60 triggers, all on the feed of 14 September, the first 45 s after its
   first packet; a 6-second burst on 9 September stays under the confirmation. The shortfall
   triggers are the same 103 with the rule and without it.
+- On a test bench, a source with its audio timestamps 300 s from its video made reservoarr log
+  770 of those lines a minute, and the watcher moved the channel to its healthy source 47 s after
+  the first one, without passing through the slate. The healthy source and a control channel
+  logged none and were left alone.
 - Replay counts the two causes apart, Check status names the cause of each switch, and the
   journal carries it as `cause`.
 
