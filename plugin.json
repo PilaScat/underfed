@@ -35,7 +35,7 @@
       "label": "Confirm for (seconds)",
       "type": "number",
       "default": 45,
-      "help_text": "How long the shortfall must last before acting. Short dips recover on their own."
+      "help_text": "How long a shortfall, or the timestamp discontinuities, must last before acting. Short dips recover on their own."
     },
     {
       "id": "max_switches",
@@ -57,6 +57,13 @@
       "type": "number",
       "default": 180,
       "help_text": "A source that holds up this long is treated as recovered."
+    },
+    {
+      "id": "storm_per_minute",
+      "label": "Timestamp discontinuities (per minute)",
+      "type": "number",
+      "default": 100,
+      "help_text": "When a source's audio and video timestamps are far apart, the sound drifts away from the picture and reservoarr's ffmpeg logs hundreds of \"timestamp discontinuity\" lines a minute; a healthy source logs a handful. At this many the source is switched. 0 turns it off."
     },
     {
       "id": "exclude_channels",

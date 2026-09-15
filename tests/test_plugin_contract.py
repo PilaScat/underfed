@@ -196,6 +196,7 @@ def test_settings_read_by_the_code_are_declared_in_the_manifest(manifest):
         "max_switches",
         "warmup_seconds",
         "stable_seconds",
+        "storm_per_minute",
         "exclude_channels",
         "telemetry_path",
         "api_url",
@@ -249,6 +250,25 @@ def test_a_restart_without_an_applied_signature_uses_the_saved_settings(
     settings = {"api_key": "k", "ratio_percent": 80}
     loaded_module.Plugin().run("restart", {}, {"settings": settings})
     assert restarting == [loaded_module.Plugin()._arguments(settings)]
+
+
+def test_the_timestamp_rule_is_on_by_default_and_reaches_the_watcher(loaded_module, manifest):
+    field = next(item for item in manifest["fields"] if item["id"] == "storm_per_minute")
+    assert field["default"] == 100
+    arguments = loaded_module.Plugin()._arguments({})
+    assert arguments[arguments.index("--storm-per-minute") + 1] == "100"
+    off = loaded_module.Plugin()._arguments({"storm_per_minute": 0})
+    assert off[off.index("--storm-per-minute") + 1] == "0"
+
+
+def test_the_status_names_a_switch_made_for_timestamps(loaded_module, isolated_runtime):
+    loaded_module.Journal(loaded_module.JOURNAL_PATH, 50).write(
+        "switched", channel="DAZN | Serie A 1", cause="timestamps", per_minute=1338
+    )
+    result = loaded_module.Plugin().run("status", {}, {"settings": {}})
+    assert "DAZN | Serie A 1 switched at 1338 timestamp discontinuities a minute" in (
+        result["message"]
+    )
 
 
 def test_observing_only_is_the_default_the_watcher_receives(loaded_module):

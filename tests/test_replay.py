@@ -5,13 +5,14 @@ from collections import Counter
 from pathlib import Path
 
 import pytest
-from conftest import healthy, starving, ticks
+from conftest import healthy, starving, storm, ticks
 
 from underfed.detector import Thresholds
 from underfed.replay import run
 
 QUICK = Thresholds(ratio=0.70, confirm_seconds=45, warmup_seconds=60, stable_seconds=180)
 EIGHT_SEPTEMBER = Path(__file__).parent / "fixtures" / "delaybuf-2026-09-07-08.log.gz"
+FOURTEEN_SEPTEMBER = Path(__file__).parent / "fixtures" / "delaybuf-2026-09-14.log.gz"
 STARVED_FEEDS = {"202096.ts", "94281.ts", "202121.ts", "202099.ts"}
 STARVED_AT_1757 = "272355.ts"
 
@@ -48,6 +49,37 @@ def test_the_feed_caught_at_17_57_was_feeding_the_player_below_half_the_content_
         if f"[{STARVED_AT_1757}]" in line and "cushion=0s" in line
     ]
     assert len(lines) >= 4
+
+
+def fourteen_september(tmp_path: Path) -> Path:
+    log = tmp_path / "delaybuf.log"
+    log.write_bytes(gzip.decompress(FOURTEEN_SEPTEMBER.read_bytes()))
+    return log
+
+
+def test_the_evening_of_14_september_triggers_on_timestamps_only_on_the_broken_feed(
+    tmp_path: Path,
+):
+    outcome = run(fourteen_september(tmp_path), Thresholds())
+    assert outcome.hits == []
+    assert {found.feed for found in outcome.storms} == {"542059.ts"}
+    assert len(outcome.storms) == 15
+    first = outcome.storms[0]
+    assert first.when(0) == "14 Sep 17:36:10"
+    assert first.seconds == 45
+
+
+def test_the_same_evening_with_the_rule_off_switches_nothing(tmp_path: Path):
+    outcome = run(fourteen_september(tmp_path), Thresholds(storm_per_minute=0))
+    assert outcome.hits == []
+    assert outcome.storms == []
+
+
+def test_a_storm_is_named_in_the_summary(tmp_path: Path):
+    outcome = run(write(tmp_path, ticks(0, 5, healthy) + storm(0, 50)), QUICK)
+    assert len(outcome.storms) == 1
+    assert "542059.ts" in outcome.summary()
+    assert "timestamp discontinuities" in outcome.summary()
 
 
 def write(tmp_path: Path, lines: list[str]) -> Path:

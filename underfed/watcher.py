@@ -10,11 +10,14 @@ from pathlib import Path
 
 from .constants import (
     API_KEY_ENV,
+    CAUSE_TIMESTAMPS,
+    CAUSE_UNDERFED,
     DEFAULT_API_URL,
     DEFAULT_CONFIRM_SECONDS,
     DEFAULT_MAX_SWITCHES_PER_HOUR,
     DEFAULT_RATIO_PERCENT,
     DEFAULT_STABLE_SECONDS,
+    DEFAULT_STORM_PER_MINUTE,
     DEFAULT_TELEMETRY_PATH,
     DEFAULT_WARMUP_SECONDS,
     MAPPING_REFRESH_SECONDS,
@@ -25,6 +28,7 @@ from .detector import Detector, Thresholds, Verdict
 from .dispatcharr import ApiError, Catalogue, ChainEntry, Client
 from .journal import Journal
 from .state import load, save
+from .storm import Storm, StormDetector
 from .tailer import Tailer
 
 STATUS_REFRESH_SECONDS = 5.0
@@ -43,6 +47,7 @@ def arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--warmup-seconds", type=float, default=DEFAULT_WARMUP_SECONDS)
     parser.add_argument("--stable-seconds", type=float, default=DEFAULT_STABLE_SECONDS)
     parser.add_argument("--max-switches", type=int, default=DEFAULT_MAX_SWITCHES_PER_HOUR)
+    parser.add_argument("--storm-per-minute", type=int, default=DEFAULT_STORM_PER_MINUTE)
     parser.add_argument("--exclude", action="append", default=[])
     parser.add_argument("--observe-only", action="store_true")
     return parser.parse_args(argv)
@@ -52,14 +57,15 @@ class Watcher:
     def __init__(self, options: argparse.Namespace, client: Client) -> None:
         self.options = options
         self.client = client
-        self.detector = Detector(
-            Thresholds(
-                ratio=min(max(options.ratio_percent, 1.0), 99.0) / 100,
-                confirm_seconds=max(options.confirm_seconds, 5.0),
-                warmup_seconds=max(options.warmup_seconds, 0.0),
-                stable_seconds=max(options.stable_seconds, 0.0),
-            )
+        thresholds = Thresholds(
+            ratio=min(max(options.ratio_percent, 1.0), 99.0) / 100,
+            confirm_seconds=max(options.confirm_seconds, 5.0),
+            warmup_seconds=max(options.warmup_seconds, 0.0),
+            stable_seconds=max(options.stable_seconds, 0.0),
+            storm_per_minute=max(options.storm_per_minute, 0),
         )
+        self.detector = Detector(thresholds)
+        self.storms = StormDetector(thresholds)
         self.journal = Journal(Path(options.journal), MAX_RECENT_EVENTS)
         self.tailer = Tailer(Path(options.telemetry))
         self.excluded = {value.strip().casefold() for value in options.exclude if value.strip()}
@@ -82,6 +88,7 @@ class Watcher:
             telemetry=str(self.options.telemetry),
             ratio_percent=self.options.ratio_percent,
             confirm_seconds=self.options.confirm_seconds,
+            storm_per_minute=self.options.storm_per_minute,
         )
         while self._running:
             self.step()
@@ -117,68 +124,63 @@ class Watcher:
                 self.journal.write("api_error", where="catalogue", detail=str(error))
 
     def _consume(self, line: str) -> None:
-        from .telemetry import parse
+        from .telemetry import parse, parse_discontinuity
 
         sample = parse(line)
-        if sample is None:
+        if sample is not None:
+            verdict = self.detector.observe(sample)
+            if verdict is not None:
+                self._act(verdict.feed, self._facts(verdict))
             return
-        verdict = self.detector.observe(sample)
-        if verdict is not None:
-            self._act(verdict)
+        jump = parse_discontinuity(line)
+        if jump is not None:
+            storm = self.storms.observe(jump)
+            if storm is not None:
+                self._act(storm.feed, self._storm_facts(storm))
 
-    def _act(self, verdict: Verdict) -> None:
-        channel = self.active.get(verdict.feed)
+    def _act(self, feed: str, facts: dict) -> None:
+        channel = self.active.get(feed)
         if channel is None:
-            self.journal.write("skipped", reason="channel not streaming", **self._facts(verdict))
+            self.journal.write("skipped", reason="channel not streaming", **facts)
             return
         if getattr(channel, "clients", 0) <= 0:
-            self.journal.write("skipped", reason="no clients", **self._facts(verdict))
+            self.journal.write("skipped", reason="no clients", **facts)
             return
 
         uuid = getattr(channel, "uuid", "")
         name = getattr(channel, "name", "") or uuid
         if self._is_excluded(name):
-            self.journal.write("skipped", reason="excluded", channel=name, **self._facts(verdict))
+            self.journal.write("skipped", reason="excluded", channel=name, **facts)
             return
 
         if self._too_many(uuid):
-            self.journal.write(
-                "skipped", reason="switch limit reached", channel=name, **self._facts(verdict)
-            )
+            self.journal.write("skipped", reason="switch limit reached", channel=name, **facts)
             return
 
-        following = self._following(uuid, verdict.feed)
+        following = self._following(uuid, feed)
         if following is None:
-            self.journal.write(
-                "skipped", reason="no source after this one", channel=name, **self._facts(verdict)
-            )
+            self.journal.write("skipped", reason="no source after this one", channel=name, **facts)
             return
         if following.is_slate:
-            self.journal.write(
-                "skipped", reason="next source is the slate", channel=name, **self._facts(verdict)
-            )
+            self.journal.write("skipped", reason="next source is the slate", channel=name, **facts)
             return
 
         if self.options.observe_only:
             self.switches[uuid].append(time.time())
-            self.journal.write(
-                "would_switch", channel=name, to=following.name, **self._facts(verdict)
-            )
+            self.journal.write("would_switch", channel=name, to=following.name, **facts)
             self._keep_switches()
             return
 
         try:
             self.client.next_stream(uuid)
         except ApiError as error:
-            self.journal.write(
-                "failed", channel=name, detail=str(error), **self._facts(verdict)
-            )
+            self.journal.write("failed", channel=name, detail=str(error), **facts)
             return
 
         self.switches[uuid].append(time.time())
-        self.active.pop(verdict.feed, None)
+        self.active.pop(feed, None)
         self._status_at = float("-inf")
-        self.journal.write("switched", channel=name, to=following.name, **self._facts(verdict))
+        self.journal.write("switched", channel=name, to=following.name, **facts)
         self._keep_switches()
 
     def _following(self, uuid: str, feed: str) -> ChainEntry | None:
@@ -197,11 +199,20 @@ class Watcher:
     def _facts(self, verdict: Verdict) -> dict:
         return {
             "feed": verdict.feed,
+            "cause": CAUSE_UNDERFED,
             "percent": verdict.percent,
             "in_mbps": round(verdict.in_mbps, 2),
             "measure": verdict.measure,
             "crate_mbps": round(verdict.crate_mbps, 2),
             "starving_seconds": round(verdict.seconds),
+        }
+
+    def _storm_facts(self, storm: Storm) -> dict:
+        return {
+            "feed": storm.feed,
+            "cause": CAUSE_TIMESTAMPS,
+            "per_minute": storm.per_minute,
+            "storm_seconds": round(storm.seconds),
         }
 
     def _is_excluded(self, name: str) -> bool:

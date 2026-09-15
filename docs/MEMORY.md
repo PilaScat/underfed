@@ -28,6 +28,16 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
   empty and fed the player 1.64 of 4.6 Mbps while `in` still read 3.6 (0.2.1 found 44 and 58,
   on the four only). Retune only with that test and a replay of a fresh log. Replay counts
   triggers, not switches.
+- **Timestamp discontinuities** (0.4.0): a source whose audio and video timestamps are far apart
+  makes reservoarr's ffmpeg correct every packet, which swallows the video's gaps and leaves the
+  sound behind, 7.8 s after 20 minutes on 14 September 2026. The signal is the `timestamp
+  discontinuity` lines of a feed over the last 60 s: from 5 to 15 September healthy feeds never
+  logged more than 7 a minute, the broken ones 648 (for 6 s) and 1,000-1,836 (for 73 minutes).
+  The threshold is 100, on by default. The confirmation is Confirm for, shared with the
+  shortfall, and there is no warm-up: the storm starts with the first packet. A count under the
+  threshold ends it at once. The reference is `tests/fixtures/delaybuf-2026-09-14.log.gz`, the
+  telemetry and discontinuity lines from 17:30 to 17:50 UTC: 15 triggers, all on 542059, the
+  first at 17:36:10.
 - **The watcher is a detached process** without Django, talking to Dispatcharr over HTTP.
   `restart` is bound to `channel_start` and starts it with the arguments of the last Apply,
   stored in `.runtime/state.json` as `signature`; the API key is read from the saved settings.

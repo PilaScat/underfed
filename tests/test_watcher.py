@@ -5,10 +5,10 @@ import time
 from argparse import Namespace
 from pathlib import Path
 
-from conftest import healthy, starving, ticks
+from conftest import healthy, starving, storm, ticks
 
 from underfed.dispatcharr import ActiveChannel, ApiError, Catalogue, ChainEntry
-from underfed.watcher import Watcher
+from underfed.watcher import Watcher, arguments
 
 UNO = "202121.ts"
 
@@ -65,6 +65,7 @@ def options(tmp_path: Path, **overrides) -> Namespace:
         "warmup_seconds": 60.0,
         "stable_seconds": 180.0,
         "max_switches": 2,
+        "storm_per_minute": 100,
         "exclude": [],
         "observe_only": False,
     }
@@ -83,6 +84,11 @@ def build(tmp_path: Path, active: dict, cat: Catalogue, **overrides) -> tuple[Wa
 
 def starve(watcher: Watcher, count: int = 4) -> None:
     for text in ticks(0, 5, healthy) + ticks(5, count, starving):
+        watcher._consume(text)
+
+
+def storm_on(watcher: Watcher, seconds: int = 50) -> None:
+    for text in storm(0, seconds, feed=UNO):
         watcher._consume(text)
 
 
@@ -262,7 +268,41 @@ def test_the_journal_carries_the_numbers_that_justify_the_move(tmp_path: Path):
     starve(watcher)
     last = events(watcher)[-1]
     assert last["feed"] == UNO
+    assert last["cause"] == "underfed"
     assert last["percent"] == 23
     assert last["in_mbps"] == 1.0
     assert last["crate_mbps"] == 4.44
     assert last["starving_seconds"] >= 45
+
+
+def test_a_channel_whose_source_storms_is_moved_to_the_next_source(tmp_path: Path):
+    watcher, client = build(tmp_path, streaming(), chain_with_alternative())
+    storm_on(watcher)
+    assert client.switched == ["uuid-uno"]
+    last = events(watcher)[-1]
+    assert last["event"] == "switched"
+    assert last["cause"] == "timestamps"
+    assert last["per_minute"] >= 100
+    assert last["storm_seconds"] == 45
+
+
+def test_the_timestamp_rule_at_zero_leaves_the_channel_alone(tmp_path: Path):
+    watcher, client = build(tmp_path, streaming(), chain_with_alternative(), storm_per_minute=0)
+    storm_on(watcher, seconds=300)
+    assert client.switched == []
+    assert events(watcher) == []
+
+
+def test_a_storm_and_a_shortfall_share_the_hourly_limit(tmp_path: Path):
+    watcher, client = build(tmp_path, streaming(), chain_with_alternative(), max_switches=1)
+    starve(watcher)
+    watcher.active = streaming()
+    storm_on(watcher)
+    assert client.switched == ["uuid-uno"]
+    last = events(watcher)[-1]
+    assert last["reason"] == "switch limit reached"
+    assert last["cause"] == "timestamps"
+
+
+def test_the_arguments_of_an_apply_made_before_the_rule_existed_turn_it_on():
+    assert arguments(["--journal", "x"]).storm_per_minute == 100

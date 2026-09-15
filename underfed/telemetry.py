@@ -5,10 +5,14 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 
-LINE = re.compile(
+STAMP_AND_FEED = (
     r"^(?P<stamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4})\s+"
     r"\[(?P<feed>[^\]]+)\]\s+"
-    r"cushion=(?P<cushion>\d+)s\((?P<clock>\w+)\)\s+"
+)
+DISCONTINUITY = re.compile(STAMP_AND_FEED + r"ffmpeg:.*\btimestamp discontinuity\b")
+LINE = re.compile(
+    STAMP_AND_FEED
+    + r"cushion=(?P<cushion>\d+)s\((?P<clock>\w+)\)\s+"
     r"buf=(?P<buf>[\d.]+)MB\s+"
     r"out=(?P<out>[\d.]+)Mbps\s+"
     r"in=(?P<inbound>[\d.]+)Mbps\s+"
@@ -38,16 +42,28 @@ class Sample:
         return self.in_mbps / self.crate_mbps
 
 
+@dataclass(frozen=True)
+class Discontinuity:
+    at: float
+    feed: str
+
+
+def moment(stamp: str) -> float | None:
+    try:
+        return datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%S%z").timestamp()
+    except ValueError:
+        return None
+
+
 def parse(line: str) -> Sample | None:
     match = LINE.match(line.strip())
     if match is None:
         return None
-    try:
-        stamp = datetime.strptime(match["stamp"], "%Y-%m-%dT%H:%M:%S%z")
-    except ValueError:
+    at = moment(match["stamp"])
+    if at is None:
         return None
     return Sample(
-        at=stamp.timestamp(),
+        at=at,
         feed=match["feed"],
         cushion_seconds=int(match["cushion"]),
         clock=match["clock"],
@@ -58,6 +74,16 @@ def parse(line: str) -> Sample | None:
         reconnects=int(match["reconnects"] or 0),
         total_mb=int(match["total"]) if match["total"] is not None else None,
     )
+
+
+def parse_discontinuity(line: str) -> Discontinuity | None:
+    match = DISCONTINUITY.match(line.strip())
+    if match is None:
+        return None
+    at = moment(match["stamp"])
+    if at is None:
+        return None
+    return Discontinuity(at=at, feed=match["feed"])
 
 
 def parse_all(lines: Iterable[str]) -> list[Sample]:

@@ -7,6 +7,7 @@ from .constants import (
     DEFAULT_CONFIRM_SECONDS,
     DEFAULT_RATIO_PERCENT,
     DEFAULT_STABLE_SECONDS,
+    DEFAULT_STORM_PER_MINUTE,
     DEFAULT_WARMUP_SECONDS,
     INGEST_MIN_SPAN_SECONDS,
     INGEST_WINDOW_SECONDS,
@@ -26,6 +27,7 @@ class Thresholds:
     warmup_seconds: float = DEFAULT_WARMUP_SECONDS
     stable_seconds: float = DEFAULT_STABLE_SECONDS
     min_crate_mbps: float = MIN_TRUSTED_CRATE_MBPS
+    storm_per_minute: int = DEFAULT_STORM_PER_MINUTE
 
     @classmethod
     def from_settings(cls, settings: dict) -> Thresholds:
@@ -41,6 +43,7 @@ class Thresholds:
             confirm_seconds=max(number("confirm_seconds", DEFAULT_CONFIRM_SECONDS), 5.0),
             warmup_seconds=max(number("warmup_seconds", DEFAULT_WARMUP_SECONDS), 0.0),
             stable_seconds=max(number("stable_seconds", DEFAULT_STABLE_SECONDS), 0.0),
+            storm_per_minute=max(int(number("storm_per_minute", DEFAULT_STORM_PER_MINUTE)), 0),
         )
 
 

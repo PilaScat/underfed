@@ -14,7 +14,9 @@ try:
     from .underfed import state as state_module
     from .underfed.constants import (
         API_KEY_ENV,
+        CAUSE_TIMESTAMPS,
         DEFAULT_API_URL,
+        DEFAULT_STORM_PER_MINUTE,
         DEFAULT_TELEMETRY_PATH,
         HEARTBEAT_INTERVAL_SECONDS,
         MAX_RECENT_EVENTS,
@@ -31,7 +33,9 @@ except ImportError:
     from underfed import state as state_module
     from underfed.constants import (
         API_KEY_ENV,
+        CAUSE_TIMESTAMPS,
         DEFAULT_API_URL,
+        DEFAULT_STORM_PER_MINUTE,
         DEFAULT_TELEMETRY_PATH,
         HEARTBEAT_INTERVAL_SECONDS,
         MAX_RECENT_EVENTS,
@@ -177,12 +181,16 @@ class Plugin:
     def _running_message(self, settings: dict) -> str:
         percent = int(_as_number(settings.get("ratio_percent"), 70))
         seconds = int(_as_number(settings.get("confirm_seconds"), 45))
+        storm = self._storm_per_minute(settings)
+        jumps = f" or at {storm} timestamp discontinuities a minute" if storm else ""
         mode = (
             "Observing only: it records what it would switch and changes nothing."
             if settings.get("observe_only", True)
             else "Switching is live."
         )
-        return f"Watcher running below {percent}% of content rate for {seconds}s. {mode}"
+        return (
+            f"Watcher running below {percent}% of content rate{jumps} for {seconds}s. {mode}"
+        )
 
     def _status(self, context: dict) -> dict:
         settings = dict(context.get("settings") or {})
@@ -217,6 +225,11 @@ class Plugin:
     def _describe(self, record: dict) -> str:
         verb = "switched" if record.get("event") == "switched" else "would switch"
         channel = record.get("channel") or record.get("feed")
+        if record.get("cause") == CAUSE_TIMESTAMPS:
+            return (
+                f"{channel} {verb} at {record.get('per_minute')} "
+                f"timestamp discontinuities a minute"
+            )
         return f"{channel} {verb} at {record.get('percent')}%"
 
     def _test(self, context: dict) -> dict:
@@ -229,6 +242,7 @@ class Plugin:
             "samples": outcome.samples,
             "sources": len(outcome.feeds),
             "triggers": len(outcome.hits),
+            "storms": len(outcome.storms),
         }
 
     def _restart(self, context: dict) -> dict:
@@ -266,7 +280,11 @@ class Plugin:
             confirm_seconds=max(_as_number(settings.get("confirm_seconds"), 45), 5.0),
             warmup_seconds=max(_as_number(settings.get("warmup_seconds"), 60), 0.0),
             stable_seconds=max(_as_number(settings.get("stable_seconds"), 180), 0.0),
+            storm_per_minute=self._storm_per_minute(settings),
         )
+
+    def _storm_per_minute(self, settings: dict) -> int:
+        return max(int(_as_number(settings.get("storm_per_minute"), DEFAULT_STORM_PER_MINUTE)), 0)
 
     def _arguments(self, settings: dict) -> list[str]:
         arguments = [
@@ -286,6 +304,8 @@ class Plugin:
             str(_as_number(settings.get("stable_seconds"), 180)),
             "--max-switches",
             str(int(_as_number(settings.get("max_switches"), 2))),
+            "--storm-per-minute",
+            str(self._storm_per_minute(settings)),
         ]
         for name in _lines(settings.get("exclude_channels")):
             arguments += ["--exclude", name]
