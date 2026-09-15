@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0 — 2026-09-15
+
+- A source whose audio and video timestamps are far apart is switched too. reservoarr's ffmpeg
+  then corrects every packet and swallows the gaps in the video, so the sound falls further
+  behind with each one: on 14 September it was 7.8 s out after 20 minutes, and a viewer
+  reopened the channel eight times. The sign is the `timestamp discontinuity` lines in
+  `delaybuf.log`. At Timestamp discontinuities or above, per minute and 100 by default, for
+  Confirm for, the channel moves to its next source with the guards and the hourly limit of a
+  starving one. 0 turns it off.
+- From 5 to 15 September healthy feeds never logged more than 7 of those lines a minute. Replay
+  over those days finds 60 triggers, all on the feed of 14 September, the first 45 s after its
+  first packet; a 6-second burst on 9 September stays under the confirmation. The shortfall
+  triggers are the same 103 with the rule and without it.
+- Replay counts the two causes apart, Check status names the cause of each switch, and the
+  journal carries it as `cause`.
+
 ## 0.3.2 — 2026-09-14
 
 - The hourly switch limit holds across a restart of the watcher. The switches of the last

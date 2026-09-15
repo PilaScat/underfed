@@ -1,6 +1,6 @@
 [project]
 name = "underfed"
-version = "0.3.2"
+version = "0.4.0"
 description = "Moves a Dispatcharr channel to its next source when the provider under-delivers the stream."
 readme = "README.md"
 license = { text = "MIT" }
