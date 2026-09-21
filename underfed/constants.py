@@ -3,8 +3,9 @@ from __future__ import annotations
 PLUGIN_NAME = "Underfed"
 PLUGIN_VERSION = "0.5.0"
 PLUGIN_DESCRIPTION = (
-    "Moves a channel to its next source when the provider keeps delivering the stream, "
-    "but at a fraction of the bitrate the content needs."
+    "Moves a channel off a source that is starving it, drifting its sound or refusing it: "
+    "to the next source when the stream arrives at a fraction of its bitrate or with its "
+    "timestamps apart, to the back of the chain when the provider answers 403."
 )
 
 WATCHER_MODULE = "underfed.watcher"
