@@ -59,27 +59,32 @@ class Client:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
 
-    def _request(self, path: str, method: str = "GET") -> object:
+    def _request(self, path: str, method: str = "GET", body: object = None) -> object:
+        payload = json.dumps(body).encode("utf-8") if body is not None else None
+        headers = {
+            "X-API-Key": self.api_key,
+            "Accept": "application/json",
+            "User-Agent": f"underfed/{PLUGIN_VERSION}",
+        }
+        if payload is not None:
+            headers["Content-Type"] = "application/json"
         request = urllib.request.Request(
             f"{self.base_url}{path}",
             method=method,
-            headers={
-                "X-API-Key": self.api_key,
-                "Accept": "application/json",
-                "User-Agent": f"underfed/{PLUGIN_VERSION}",
-            },
+            headers=headers,
+            data=payload,
         )
         try:
             with urllib.request.urlopen(request, timeout=API_TIMEOUT_SECONDS) as response:
-                body = response.read()
+                answer = response.read()
         except urllib.error.HTTPError as error:
             raise ApiError(f"{method} {path} returned {error.code}") from error
         except (urllib.error.URLError, OSError) as error:
             raise ApiError(f"{method} {path} failed: {error}") from error
-        if not body:
+        if not answer:
             return {}
         try:
-            return json.loads(body)
+            return json.loads(answer)
         except ValueError as error:
             raise ApiError(f"{method} {path} returned invalid JSON") from error
 
@@ -144,3 +149,10 @@ class Client:
 
     def next_stream(self, uuid: str) -> None:
         self._request(f"/proxy/ts/next_stream/{uuid}", method="POST")
+
+    def set_chain(self, channel_id: int, stream_ids: list[int]) -> None:
+        self._request(
+            f"/api/channels/channels/{channel_id}/",
+            method="PATCH",
+            body={"streams": stream_ids},
+        )

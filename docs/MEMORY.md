@@ -44,6 +44,18 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
 - **The hourly limit survives a restart** (0.3.2): the watcher keeps the switches of the last
   hour in `.runtime/switches.json`, not in the journal, which is trimmed to 50 lines.
 
+- **A refusal rewrites the chain, not the session** (0.5.0). The other two failures move the
+  viewer with `next_stream`; this one changes the order of the channel's sources, because the
+  point is the *next* tune-in, which starts from the top again — `tried_stream_ids` dies with
+  the session. The refused source goes last among the sources, never after the fallback card:
+  Could Not Dispatch keeps that one at the end and would put it back anyway.
+- **One refusal is enough, and it climbs back after thirty minutes** (numbers from the
+  operator, on five days of logs: 192 refusal episodes, median 6 s but 140 s at the ninth
+  decile; of 135 returns on the same source, 43 within ten minutes and 60 within half an hour).
+- **The restore re-reads the catalogue.** With the cached copy, a chain already reordered made
+  `restored_order` return "nothing to do" and the demotion was dropped without the source ever
+  climbing back. The state lives in `.runtime/demotions.json`, so a restart does not lose it.
+
 ## Traps
 
 - Dispatcharr passes `params` to `run()`, never in `context`, and only the events in

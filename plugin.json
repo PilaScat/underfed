@@ -1,6 +1,6 @@
 {
   "name": "Underfed",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Moves a channel to its next source when the provider keeps delivering the stream, but at a fraction of the bitrate the content needs.",
   "author": "PilaScat",
   "license": "MIT",
@@ -64,6 +64,13 @@
       "type": "number",
       "default": 100,
       "help_text": "When a source's audio and video timestamps are far apart, the sound drifts away from the picture and reservoarr's ffmpeg logs hundreds of \"timestamp discontinuity\" lines a minute; a healthy source logs a handful. At this many the source is switched. 0 turns it off."
+    },
+    {
+      "id": "demote_minutes",
+      "label": "Refused source held back (minutes)",
+      "type": "number",
+      "default": 30,
+      "help_text": "A source the provider answers 403 to goes last in its channel's chain, ahead of the fallback card, so the next tune-in does not start on it again. It climbs back after these minutes. 0 turns it off."
     },
     {
       "id": "exclude_channels",

@@ -10,10 +10,12 @@ from pathlib import Path
 
 from .constants import (
     API_KEY_ENV,
+    CAUSE_FORBIDDEN,
     CAUSE_TIMESTAMPS,
     CAUSE_UNDERFED,
     DEFAULT_API_URL,
     DEFAULT_CONFIRM_SECONDS,
+    DEFAULT_DEMOTE_MINUTES,
     DEFAULT_MAX_SWITCHES_PER_HOUR,
     DEFAULT_RATIO_PERCENT,
     DEFAULT_STABLE_SECONDS,
@@ -24,8 +26,10 @@ from .constants import (
     MAX_RECENT_EVENTS,
     POLL_INTERVAL_SECONDS,
 )
+from .demotions import Demotion, demoted_order, position_of, restored_order
 from .detector import Detector, Thresholds, Verdict
 from .dispatcharr import ApiError, Catalogue, ChainEntry, Client
+from .forbidden import parse_refusal
 from .journal import Journal
 from .state import load, save
 from .storm import Storm, StormDetector
@@ -35,6 +39,7 @@ STATUS_REFRESH_SECONDS = 5.0
 CATALOGUE_RETRY_SECONDS = 60.0
 HOUR_SECONDS = 3600.0
 SWITCHES_FILE = "switches.json"
+DEMOTIONS_FILE = "demotions.json"
 
 
 def arguments(argv: list[str] | None = None) -> argparse.Namespace:
@@ -48,6 +53,7 @@ def arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--stable-seconds", type=float, default=DEFAULT_STABLE_SECONDS)
     parser.add_argument("--max-switches", type=int, default=DEFAULT_MAX_SWITCHES_PER_HOUR)
     parser.add_argument("--storm-per-minute", type=int, default=DEFAULT_STORM_PER_MINUTE)
+    parser.add_argument("--demote-minutes", type=float, default=DEFAULT_DEMOTE_MINUTES)
     parser.add_argument("--exclude", action="append", default=[])
     parser.add_argument("--observe-only", action="store_true")
     return parser.parse_args(argv)
@@ -73,6 +79,8 @@ class Watcher:
         self.active: dict[str, object] = {}
         self.switches_path = Path(options.journal).with_name(SWITCHES_FILE)
         self.switches: dict[str, deque[float]] = defaultdict(deque, self._recall_switches())
+        self.demotions_path = Path(options.journal).with_name(DEMOTIONS_FILE)
+        self.demotions: list[Demotion] = self._recall_demotions()
         self._catalogue_at = float("-inf")
         self._status_at = float("-inf")
         self._last_error = ""
@@ -99,6 +107,7 @@ class Watcher:
     def step(self) -> None:
         try:
             self._refresh()
+            self._restore_due()
             for line in self.tailer.read():
                 self._consume(line)
         except Exception as error:
@@ -106,6 +115,103 @@ class Watcher:
             if detail != self._last_error:
                 self.journal.write("error", detail=detail)
             self._last_error = detail
+
+    def _restore_due(self) -> None:
+        now = time.time()
+        due = [row for row in self.demotions if row.until <= now]
+        if not due:
+            return
+        try:
+            self.catalogue = self.client.catalogue()
+            self._catalogue_at = time.monotonic()
+        except ApiError as error:
+            self.journal.write("api_error", where="catalogue", detail=str(error))
+            return
+        for row in due:
+            self.demotions.remove(row)
+            chain = self.catalogue.chains.get(row.uuid) or []
+            channel_id = self.catalogue.numeric_ids.get(row.uuid)
+            order = restored_order(chain, row.stream_id, row.position)
+            if channel_id is not None and order is not None:
+                try:
+                    self.client.set_chain(channel_id, order)
+                    self.journal.write("restored", feed=row.feed, position=row.position)
+                except ApiError as error:
+                    self.journal.write("failed", feed=row.feed, detail=str(error))
+        self._keep_demotions()
+
+    def _demote(self, feed: str) -> None:
+        if self.options.demote_minutes <= 0:
+            return
+        if any(row.feed == feed for row in self.demotions):
+            return
+        channel = self.active.get(feed)
+        uuid = getattr(channel, "uuid", "") if channel else ""
+        if not uuid:
+            return
+        chain = self.catalogue.chains.get(uuid) or []
+        entry = next((row for row in chain if row.feed == feed), None)
+        channel_id = self.catalogue.numeric_ids.get(uuid)
+        if entry is None or channel_id is None:
+            return
+        position = position_of(chain, entry.stream_id)
+        order = demoted_order(chain, entry.stream_id)
+        name = getattr(channel, "name", "") or uuid
+        if order is None or position is None:
+            self.journal.write("skipped", cause=CAUSE_FORBIDDEN, channel=name, feed=feed,
+                               reason="nowhere lower to go")
+            return
+        if self.options.observe_only:
+            self.journal.write("would_demote", cause=CAUSE_FORBIDDEN, channel=name, feed=feed,
+                               minutes=self.options.demote_minutes)
+            return
+        try:
+            self.client.set_chain(channel_id, order)
+        except ApiError as error:
+            self.journal.write("failed", cause=CAUSE_FORBIDDEN, channel=name, feed=feed,
+                               detail=str(error))
+            return
+        until = time.time() + self.options.demote_minutes * 60
+        self.demotions.append(
+            Demotion(
+                uuid=uuid,
+                stream_id=entry.stream_id,
+                feed=feed,
+                position=position,
+                until=until,
+            )
+        )
+        self._keep_demotions()
+        self.journal.write("demoted", cause=CAUSE_FORBIDDEN, channel=name, feed=feed,
+                           position=position, minutes=self.options.demote_minutes)
+
+    def _recall_demotions(self) -> list[Demotion]:
+        stored = load(self.demotions_path).get("demotions")
+        rows: list[Demotion] = []
+        if not isinstance(stored, list):
+            return rows
+        for row in stored:
+            if not isinstance(row, dict):
+                continue
+            try:
+                rows.append(
+                    Demotion(
+                        uuid=str(row["uuid"]),
+                        stream_id=int(row["stream_id"]),
+                        feed=str(row["feed"]),
+                        position=int(row["position"]),
+                        until=float(row["until"]),
+                    )
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+        return rows
+
+    def _keep_demotions(self) -> None:
+        save(
+            self.demotions_path,
+            {"demotions": [vars(row) for row in self.demotions]},
+        )
 
     def _refresh(self) -> None:
         now = time.monotonic()
@@ -126,6 +232,10 @@ class Watcher:
     def _consume(self, line: str) -> None:
         from .telemetry import parse, parse_discontinuity
 
+        refusal = parse_refusal(line)
+        if refusal is not None:
+            self._demote(refusal.feed)
+            return
         sample = parse(line)
         if sample is not None:
             verdict = self.detector.observe(sample)

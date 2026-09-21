@@ -16,7 +16,8 @@ try:
         API_KEY_ENV,
         CAUSE_TIMESTAMPS,
         DEFAULT_API_URL,
-        DEFAULT_STORM_PER_MINUTE,
+        DEFAULT_DEMOTE_MINUTES,
+    DEFAULT_STORM_PER_MINUTE,
         DEFAULT_TELEMETRY_PATH,
         HEARTBEAT_INTERVAL_SECONDS,
         MAX_RECENT_EVENTS,
@@ -286,6 +287,9 @@ class Plugin:
     def _storm_per_minute(self, settings: dict) -> int:
         return max(int(_as_number(settings.get("storm_per_minute"), DEFAULT_STORM_PER_MINUTE)), 0)
 
+    def _demote_minutes(self, settings: dict) -> float:
+        return max(_as_number(settings.get("demote_minutes"), DEFAULT_DEMOTE_MINUTES), 0.0)
+
     def _arguments(self, settings: dict) -> list[str]:
         arguments = [
             "--telemetry",
@@ -306,6 +310,8 @@ class Plugin:
             str(int(_as_number(settings.get("max_switches"), 2))),
             "--storm-per-minute",
             str(self._storm_per_minute(settings)),
+            "--demote-minutes",
+            str(self._demote_minutes(settings)),
         ]
         for name in _lines(settings.get("exclude_channels")):
             arguments += ["--exclude", name]

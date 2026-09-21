@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0 — 2026-09-21
+
+- **A source the provider refuses goes to the back of its chain.** Dispatcharr forgets a refused
+  source with the session, so the next tune-in starts on it again and pays the same wait: over
+  five days of logs, 192 episodes of `HTTP 403`, 154 ending in a give-up, and 32 sources out of
+  53 refused more than once — one of them eighteen times. Now one refusal moves the source last
+  in the chain, ahead of the fallback card, and it climbs back to its old position after
+  **Refused source held back** minutes (30 by default, 0 to turn it off). Both moves are in the
+  journal, as `demoted` and `restored`.
+- The demotions live in `.runtime/demotions.json` and survive a restart of the watcher: a
+  source held back is held back for the whole window, not until the next Apply.
+- Before restoring, the watcher re-reads the catalogue rather than trusting the copy it has:
+  with a stale one the restore did nothing and the demotion was dropped in silence.
+
 ## 0.4.0 — 2026-09-15
 
 - A source whose audio and video timestamps are far apart is switched too. reservoarr's ffmpeg

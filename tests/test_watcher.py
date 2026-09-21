@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from argparse import Namespace
+from dataclasses import replace
 from pathlib import Path
 
 from conftest import healthy, starving, storm, ticks
@@ -20,6 +21,7 @@ class FakeClient:
         self._fails = fails
         self.breaks = False
         self.switched: list[str] = []
+        self.chains: list[tuple[int, list[int]]] = []
         self.catalogue_calls = 0
 
     def active(self) -> dict:
@@ -35,6 +37,16 @@ class FakeClient:
         if self._fails:
             raise ApiError("boom")
         self.switched.append(uuid)
+
+    def set_chain(self, channel_id: int, stream_ids: list[int]) -> None:
+        if self._fails:
+            raise ApiError("boom")
+        self.chains.append((channel_id, list(stream_ids)))
+        for uuid, numeric in self._catalogue.numeric_ids.items():
+            if numeric != channel_id:
+                continue
+            entries = {row.stream_id: row for row in self._catalogue.chains[uuid]}
+            self._catalogue.chains[uuid] = [entries[i] for i in stream_ids if i in entries]
 
 
 def entry(feed: str, name: str, slate: bool = False) -> ChainEntry:
@@ -68,6 +80,7 @@ def options(tmp_path: Path, **overrides) -> Namespace:
         "storm_per_minute": 100,
         "exclude": [],
         "observe_only": False,
+        "demote_minutes": 30.0,
     }
     values.update(overrides)
     return Namespace(**values)
@@ -306,3 +319,100 @@ def test_a_storm_and_a_shortfall_share_the_hourly_limit(tmp_path: Path):
 
 def test_the_arguments_of_an_apply_made_before_the_rule_existed_turn_it_on():
     assert arguments(["--journal", "x"]).storm_per_minute == 100
+
+
+REFUSED = (
+    "2026-09-20T19:42:11+0000 [202121.ts] upstream error HTTPError: "
+    "HTTP Error 403: Forbidden; retry in 1s"
+)
+
+
+def test_a_refused_source_goes_to_the_back_of_the_chain(tmp_path: Path):
+    cat = chain_with_alternative()
+    before = [row.stream_id for row in cat.chains["uuid-uno"]]
+    watcher, client = build(tmp_path, streaming(), cat)
+    watcher._consume(REFUSED)
+
+    assert len(client.chains) == 1
+    channel_id, order = client.chains[0]
+    assert channel_id == 189
+    assert order == [before[1], before[0], before[2]]
+    demoted = [row for row in events(watcher) if row["event"] == "demoted"]
+    assert demoted and demoted[0]["cause"] == "forbidden"
+    assert demoted[0]["feed"] == UNO
+
+
+def test_the_slate_stays_last(tmp_path: Path):
+    cat = chain_with_alternative()
+    slate = cat.chains["uuid-uno"][2].stream_id
+    watcher, client = build(tmp_path, streaming(), cat)
+    watcher._consume(REFUSED)
+    assert client.chains[0][1][-1] == slate
+
+
+def test_one_refusal_is_enough_but_the_second_changes_nothing(tmp_path: Path):
+    watcher, client = build(tmp_path, streaming(), chain_with_alternative())
+    watcher._consume(REFUSED)
+    watcher._consume(REFUSED)
+    assert len(client.chains) == 1
+
+
+def test_a_source_with_nowhere_lower_is_left_alone(tmp_path: Path):
+    cat = catalogue(
+        [entry(UNO, "Sky Sport Uno FHD"), entry("slate.ts", "Could Not Dispatch", slate=True)]
+    )
+    watcher, client = build(tmp_path, streaming(), cat)
+    watcher._consume(REFUSED)
+    assert client.chains == []
+    skipped = [row for row in events(watcher) if row["event"] == "skipped"]
+    assert skipped and skipped[-1]["reason"] == "nowhere lower to go"
+
+
+def test_the_source_climbs_back_when_the_half_hour_is_over(tmp_path: Path):
+    cat = chain_with_alternative()
+    before = [row.stream_id for row in cat.chains["uuid-uno"]]
+    watcher, client = build(tmp_path, streaming(), cat)
+    watcher._consume(REFUSED)
+    watcher.demotions[0] = replace(watcher.demotions[0], until=time.time() - 1)
+    watcher._restore_due()
+
+    assert len(client.chains) == 2
+    assert client.chains[1][1] == before
+    assert [row["event"] for row in events(watcher)].count("restored") == 1
+
+
+def test_it_waits_while_the_half_hour_runs(tmp_path: Path):
+    watcher, client = build(tmp_path, streaming(), chain_with_alternative())
+    watcher._consume(REFUSED)
+    watcher._restore_due()
+    assert len(client.chains) == 1
+
+
+def test_the_demotions_survive_a_restart(tmp_path: Path):
+    cat = chain_with_alternative()
+    before = [row.stream_id for row in cat.chains["uuid-uno"]]
+    watcher, _ = build(tmp_path, streaming(), cat)
+    watcher._consume(REFUSED)
+
+    again, client = build(tmp_path, streaming(), cat)
+    assert [row.feed for row in again.demotions] == [UNO]
+    again.demotions[0] = replace(again.demotions[0], until=time.time() - 1)
+    again._restore_due()
+    assert client.chains == [(189, before)]
+
+
+def test_observe_only_writes_it_down_and_touches_nothing(tmp_path: Path):
+    watcher, client = build(
+        tmp_path, streaming(), chain_with_alternative(), observe_only=True
+    )
+    watcher._consume(REFUSED)
+    assert client.chains == []
+    assert [row["event"] for row in events(watcher)].count("would_demote") == 1
+
+
+def test_zero_minutes_turns_the_whole_thing_off(tmp_path: Path):
+    watcher, client = build(
+        tmp_path, streaming(), chain_with_alternative(), demote_minutes=0
+    )
+    watcher._consume(REFUSED)
+    assert client.chains == []
