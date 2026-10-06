@@ -35,7 +35,7 @@
       "label": "Confirm for (seconds)",
       "type": "number",
       "default": 45,
-      "help_text": "How long a shortfall, or the timestamp discontinuities, must last before acting. Short dips recover on their own."
+      "help_text": "How long a shortfall must last before acting. Short dips recover on their own: the provider's CDN delivers in bursts of about ten seconds."
     },
     {
       "id": "max_switches",
@@ -64,6 +64,13 @@
       "type": "number",
       "default": 100,
       "help_text": "When a source's audio and video timestamps are far apart, the sound drifts away from the picture and reservoarr's ffmpeg logs hundreds of \"timestamp discontinuity\" lines a minute; a healthy source logs a handful. At this many the source is switched. 0 turns it off."
+    },
+    {
+      "id": "storm_confirm_seconds",
+      "label": "Confirm discontinuities for (seconds)",
+      "type": "number",
+      "default": 15,
+      "help_text": "How long the timestamp discontinuities must stay above the threshold before acting. A storm is unmistakable and the sound drifts further with every second of it, so this is shorter than the shortfall's confirmation."
     },
     {
       "id": "demote_minutes",

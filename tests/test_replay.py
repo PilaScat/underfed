@@ -63,10 +63,10 @@ def test_the_evening_of_14_september_triggers_on_timestamps_only_on_the_broken_f
     outcome = run(fourteen_september(tmp_path), Thresholds())
     assert outcome.hits == []
     assert {found.feed for found in outcome.storms} == {"542059.ts"}
-    assert len(outcome.storms) == 15
+    assert len(outcome.storms) == 47
     first = outcome.storms[0]
-    assert first.when(0) == "14 Sep 17:36:10"
-    assert first.seconds == 45
+    assert first.when(0) == "14 Sep 17:35:40"
+    assert first.seconds == 15
 
 
 def test_the_same_evening_with_the_rule_off_switches_nothing(tmp_path: Path):
@@ -76,7 +76,7 @@ def test_the_same_evening_with_the_rule_off_switches_nothing(tmp_path: Path):
 
 
 def test_a_storm_is_named_in_the_summary(tmp_path: Path):
-    outcome = run(write(tmp_path, ticks(0, 5, healthy) + storm(0, 50)), QUICK)
+    outcome = run(write(tmp_path, ticks(0, 5, healthy) + storm(0, 20)), QUICK)
     assert len(outcome.storms) == 1
     assert "542059.ts" in outcome.summary()
     assert "timestamp discontinuities" in outcome.summary()

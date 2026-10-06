@@ -17,7 +17,8 @@ try:
         CAUSE_TIMESTAMPS,
         DEFAULT_API_URL,
         DEFAULT_DEMOTE_MINUTES,
-    DEFAULT_STORM_PER_MINUTE,
+        DEFAULT_STORM_CONFIRM_SECONDS,
+        DEFAULT_STORM_PER_MINUTE,
         DEFAULT_TELEMETRY_PATH,
         HEARTBEAT_INTERVAL_SECONDS,
         MAX_RECENT_EVENTS,
@@ -36,6 +37,8 @@ except ImportError:
         API_KEY_ENV,
         CAUSE_TIMESTAMPS,
         DEFAULT_API_URL,
+        DEFAULT_DEMOTE_MINUTES,
+        DEFAULT_STORM_CONFIRM_SECONDS,
         DEFAULT_STORM_PER_MINUTE,
         DEFAULT_TELEMETRY_PATH,
         HEARTBEAT_INTERVAL_SECONDS,
@@ -183,14 +186,19 @@ class Plugin:
         percent = int(_as_number(settings.get("ratio_percent"), 70))
         seconds = int(_as_number(settings.get("confirm_seconds"), 45))
         storm = self._storm_per_minute(settings)
-        jumps = f" or at {storm} timestamp discontinuities a minute" if storm else ""
+        storm_seconds = int(self._storm_confirm_seconds(settings))
+        jumps = (
+            f" or at {storm} timestamp discontinuities a minute for {storm_seconds}s"
+            if storm
+            else ""
+        )
         mode = (
             "Observing only: it records what it would switch and changes nothing."
             if settings.get("observe_only", True)
             else "Switching is live."
         )
         return (
-            f"Watcher running below {percent}% of content rate{jumps} for {seconds}s. {mode}"
+            f"Watcher running below {percent}% of content rate for {seconds}s{jumps}. {mode}"
         )
 
     def _status(self, context: dict) -> dict:
@@ -282,10 +290,16 @@ class Plugin:
             warmup_seconds=max(_as_number(settings.get("warmup_seconds"), 60), 0.0),
             stable_seconds=max(_as_number(settings.get("stable_seconds"), 180), 0.0),
             storm_per_minute=self._storm_per_minute(settings),
+            storm_confirm_seconds=self._storm_confirm_seconds(settings),
         )
 
     def _storm_per_minute(self, settings: dict) -> int:
         return max(int(_as_number(settings.get("storm_per_minute"), DEFAULT_STORM_PER_MINUTE)), 0)
+
+    def _storm_confirm_seconds(self, settings: dict) -> float:
+        return max(
+            _as_number(settings.get("storm_confirm_seconds"), DEFAULT_STORM_CONFIRM_SECONDS), 5.0
+        )
 
     def _demote_minutes(self, settings: dict) -> float:
         return max(_as_number(settings.get("demote_minutes"), DEFAULT_DEMOTE_MINUTES), 0.0)
@@ -310,6 +324,8 @@ class Plugin:
             str(int(_as_number(settings.get("max_switches"), 2))),
             "--storm-per-minute",
             str(self._storm_per_minute(settings)),
+            "--storm-confirm-seconds",
+            str(self._storm_confirm_seconds(settings)),
             "--demote-minutes",
             str(self._demote_minutes(settings)),
         ]

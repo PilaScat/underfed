@@ -218,14 +218,23 @@ def test_the_snapshot_says_which_measure_it_used():
 
 def test_thresholds_come_from_the_plugin_settings():
     thresholds = Thresholds.from_settings(
-        {"ratio_percent": "80", "confirm_seconds": "30", "warmup_seconds": "0"}
+        {
+            "ratio_percent": "80",
+            "confirm_seconds": "30",
+            "warmup_seconds": "0",
+            "storm_confirm_seconds": "20",
+        }
     )
     assert thresholds.ratio == 0.8
     assert thresholds.confirm_seconds == 30
+    assert thresholds.storm_confirm_seconds == 20
     assert thresholds.warmup_seconds == 0
 
 
 def test_nonsense_settings_fall_back_instead_of_raising():
-    thresholds = Thresholds.from_settings({"ratio_percent": "", "confirm_seconds": "abc"})
+    thresholds = Thresholds.from_settings(
+        {"ratio_percent": "", "confirm_seconds": "abc", "storm_confirm_seconds": "x"}
+    )
     assert 0 < thresholds.ratio < 1
     assert thresholds.confirm_seconds >= 5
+    assert thresholds.storm_confirm_seconds >= 5

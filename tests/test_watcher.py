@@ -78,6 +78,7 @@ def options(tmp_path: Path, **overrides) -> Namespace:
         "stable_seconds": 180.0,
         "max_switches": 2,
         "storm_per_minute": 100,
+        "storm_confirm_seconds": 15.0,
         "exclude": [],
         "observe_only": False,
         "demote_minutes": 30.0,
@@ -290,13 +291,13 @@ def test_the_journal_carries_the_numbers_that_justify_the_move(tmp_path: Path):
 
 def test_a_channel_whose_source_storms_is_moved_to_the_next_source(tmp_path: Path):
     watcher, client = build(tmp_path, streaming(), chain_with_alternative())
-    storm_on(watcher)
+    storm_on(watcher, seconds=20)
     assert client.switched == ["uuid-uno"]
     last = events(watcher)[-1]
     assert last["event"] == "switched"
     assert last["cause"] == "timestamps"
     assert last["per_minute"] >= 100
-    assert last["storm_seconds"] == 45
+    assert last["storm_seconds"] == 15
 
 
 def test_the_timestamp_rule_at_zero_leaves_the_channel_alone(tmp_path: Path):

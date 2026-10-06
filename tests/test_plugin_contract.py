@@ -197,6 +197,7 @@ def test_settings_read_by_the_code_are_declared_in_the_manifest(manifest):
         "warmup_seconds",
         "stable_seconds",
         "storm_per_minute",
+        "storm_confirm_seconds",
         "exclude_channels",
         "telemetry_path",
         "api_url",
@@ -208,6 +209,7 @@ def test_the_settings_become_the_watcher_command_line(loaded_module):
     settings = {
         "ratio_percent": 65,
         "confirm_seconds": 30,
+        "storm_confirm_seconds": 20,
         "max_switches": 3,
         "exclude_channels": "Sky | Sport Uno\n\nRai 1\n",
         "observe_only": False,
@@ -216,6 +218,7 @@ def test_the_settings_become_the_watcher_command_line(loaded_module):
     assert "--ratio-percent" in arguments
     assert arguments[arguments.index("--ratio-percent") + 1] == "65.0"
     assert arguments[arguments.index("--max-switches") + 1] == "3"
+    assert arguments[arguments.index("--storm-confirm-seconds") + 1] == "20.0"
     assert arguments.count("--exclude") == 2
     assert "--observe-only" not in arguments
 

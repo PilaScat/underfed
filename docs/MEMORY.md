@@ -33,11 +33,16 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
   sound behind, 7.8 s after 20 minutes on 14 September 2026. The signal is the `timestamp
   discontinuity` lines of a feed over the last 60 s: from 5 to 15 September healthy feeds never
   logged more than 7 a minute, the broken ones 648 (for 6 s) and 1,000-1,836 (for 73 minutes).
-  The threshold is 100, on by default. The confirmation is Confirm for, shared with the
-  shortfall, and there is no warm-up: the storm starts with the first packet. A count under the
-  threshold ends it at once. The reference is `tests/fixtures/delaybuf-2026-09-14.log.gz`, the
-  telemetry and discontinuity lines from 17:30 to 17:50 UTC: 15 triggers, all on 542059, the
-  first at 17:36:10.
+  The threshold is 100, on by default, and there is no warm-up: the storm starts with the first
+  packet. A count under the threshold ends it at once. The reference is
+  `tests/fixtures/delaybuf-2026-09-14.log.gz`, the telemetry and discontinuity lines from 17:30
+  to 17:50 UTC: 47 triggers, all on 542059, the first at 17:35:40.
+- **A storm has its own confirmation, 15 s** (0.6.0, chosen by the operator on 7 October 2026).
+  Up to 0.5.0 it shared Confirm for (45 s) with the shortfall. On 6 October a fallback feed
+  stormed at 324 lines a minute for 44 s and the viewer left one second before the switch.
+  The shortfall keeps 45 s: the CDN delivers in bursts of about ten seconds, and there is no
+  measure of shorter false alarms. On the 14 September replay the 15 s confirmation still
+  triggers only on the broken feed.
 - **The watcher is a detached process** without Django, talking to Dispatcharr over HTTP.
   `restart` is bound to `channel_start` and starts it with the arguments of the last Apply,
   stored in `.runtime/state.json` as `signature`; the API key is read from the saved settings.

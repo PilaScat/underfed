@@ -6,7 +6,7 @@ from underfed.detector import Thresholds
 from underfed.storm import StormDetector
 from underfed.telemetry import parse_discontinuity
 
-RULE = Thresholds(confirm_seconds=45, storm_per_minute=100)
+RULE = Thresholds(storm_confirm_seconds=45, storm_per_minute=100)
 
 
 def feed(detector: StormDetector, lines: list[str]) -> list:
@@ -53,7 +53,7 @@ def test_a_rate_over_the_threshold_triggers():
 
 
 def test_zero_turns_the_rule_off():
-    off = Thresholds(confirm_seconds=45, storm_per_minute=0)
+    off = Thresholds(storm_confirm_seconds=45, storm_per_minute=0)
     assert feed(StormDetector(off), storm(0, 300)) == []
 
 
@@ -61,7 +61,7 @@ def test_a_continuing_storm_repeats_at_the_confirmation_interval():
     storms = feed(StormDetector(RULE), storm(0, 300))
     assert len(storms) > 1
     gaps = [b.at - a.at for a, b in zip(storms, storms[1:], strict=False)]
-    assert all(gap >= RULE.confirm_seconds for gap in gaps)
+    assert all(gap >= RULE.storm_confirm_seconds for gap in gaps)
 
 
 def test_a_quiet_spell_starts_the_count_over():
@@ -81,3 +81,22 @@ def test_the_verdict_says_how_bad_it_was():
     found = feed(StormDetector(RULE), storm(0, 50))[0]
     assert "timestamp discontinuities a minute" in found.describe()
     assert "542059.ts" in found.describe()
+
+
+def test_a_storm_is_confirmed_faster_than_a_shortfall_by_default():
+    defaults = Thresholds()
+    assert defaults.storm_confirm_seconds == 15
+    assert defaults.confirm_seconds == 45
+
+
+def test_the_storm_confirmation_does_not_follow_the_shortfall_one():
+    rule = Thresholds(confirm_seconds=120, storm_confirm_seconds=15, storm_per_minute=100)
+    storms = feed(StormDetector(rule), storm(0, 30))
+    assert len(storms) == 1
+    assert storms[0].seconds == 15
+
+
+def test_a_44_second_storm_at_324_a_minute_is_caught_with_the_defaults():
+    storms = feed(StormDetector(Thresholds()), storm(0, 44, per_second=5, feed="712318.ts"))
+    assert len(storms) == 1
+    assert storms[0].feed == "712318.ts"

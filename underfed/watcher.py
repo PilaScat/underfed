@@ -19,6 +19,7 @@ from .constants import (
     DEFAULT_MAX_SWITCHES_PER_HOUR,
     DEFAULT_RATIO_PERCENT,
     DEFAULT_STABLE_SECONDS,
+    DEFAULT_STORM_CONFIRM_SECONDS,
     DEFAULT_STORM_PER_MINUTE,
     DEFAULT_TELEMETRY_PATH,
     DEFAULT_WARMUP_SECONDS,
@@ -53,6 +54,9 @@ def arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--stable-seconds", type=float, default=DEFAULT_STABLE_SECONDS)
     parser.add_argument("--max-switches", type=int, default=DEFAULT_MAX_SWITCHES_PER_HOUR)
     parser.add_argument("--storm-per-minute", type=int, default=DEFAULT_STORM_PER_MINUTE)
+    parser.add_argument(
+        "--storm-confirm-seconds", type=float, default=DEFAULT_STORM_CONFIRM_SECONDS
+    )
     parser.add_argument("--demote-minutes", type=float, default=DEFAULT_DEMOTE_MINUTES)
     parser.add_argument("--exclude", action="append", default=[])
     parser.add_argument("--observe-only", action="store_true")
@@ -69,6 +73,7 @@ class Watcher:
             warmup_seconds=max(options.warmup_seconds, 0.0),
             stable_seconds=max(options.stable_seconds, 0.0),
             storm_per_minute=max(options.storm_per_minute, 0),
+            storm_confirm_seconds=max(options.storm_confirm_seconds, 5.0),
         )
         self.detector = Detector(thresholds)
         self.storms = StormDetector(thresholds)
@@ -97,6 +102,7 @@ class Watcher:
             ratio_percent=self.options.ratio_percent,
             confirm_seconds=self.options.confirm_seconds,
             storm_per_minute=self.options.storm_per_minute,
+            storm_confirm_seconds=self.options.storm_confirm_seconds,
         )
         while self._running:
             self.step()

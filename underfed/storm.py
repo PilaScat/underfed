@@ -52,7 +52,7 @@ class StormDetector:
 
         if state.since is None:
             state.since = jump.at
-        confirm = self.thresholds.confirm_seconds
+        confirm = self.thresholds.storm_confirm_seconds
         if jump.at - state.since < confirm:
             return None
         if state.reported_at is not None and jump.at - state.reported_at < confirm:
