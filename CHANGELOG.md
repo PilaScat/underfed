@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0 — 2026-10-07
+
+- **A timestamp storm is confirmed after 15 seconds**, with its own setting, **Confirm
+  discontinuities for**. Up to 0.5.0 it waited Confirm for, 45 s, like a shortfall. On
+  6 October 2026 a fallback feed logged 324 timestamp discontinuities a minute for 44 s, with
+  the picture running fast and the sound drifting, and the viewer gave up one second before the
+  switch. Replayed on the evening of 14 September, the 15 s confirmation still triggers only on
+  the broken feed, 30 s earlier than before. Confirm for stays at 45 s and now applies to the
+  shortfall only.
+- The fallback import block of `plugin.py` imports the default of Refused source held back,
+  which it was missing.
+
 ## 0.5.0 — 2026-09-21
 
 - **A source the provider refuses goes to the back of its chain.** Dispatcharr forgets a refused
