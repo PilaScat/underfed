@@ -64,7 +64,7 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
 ## Traps
 
 - Dispatcharr passes `params` to `run()`, never in `context`, and only the events in
-  `apps/connect/models.py:SUPPORTED_EVENTS` reach a plugin (19 in 0.31.0).
+  `apps/connect/models.py:SUPPORTED_EVENTS` reach a plugin (20 in 0.32.0).
 - The tailer compares the first bytes of the log as well as `(device, inode)`: on Linux a file
   replaced in place can keep its inode.
 - "Never" is `-inf`, not 0, next to `time.monotonic()`: the monotonic clock starts at boot, so
