@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0 — 2026-10-11
+
+- **A source that closes the connection without sending a byte goes to the back of its chain**,
+  like a source the provider answers 403 to, and for the same minutes (Refused source held back).
+  The sign is reservoarr's `giving up` right after an `upstream EOF`. On the evening of 10 October
+  2026 an edge accepted the connection and closed it about twenty seconds later; Dispatcharr
+  retried it three times, about 43 seconds, and six viewers in a row waited between 23 and 50
+  seconds each for the same channel. The provider's MP4 placeholder, a 407 and a 520 are not
+  counted: they say the channel is off air, the provider is full or the VPN is refused, not that
+  the source is broken. The journal tells the two causes apart: `forbidden` and `empty`.
+
 ## 0.6.0 — 2026-10-07
 
 - **A timestamp storm is confirmed after 15 seconds**, with its own setting, **Confirm
