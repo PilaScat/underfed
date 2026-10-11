@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 import time
 from argparse import Namespace
@@ -417,3 +418,72 @@ def test_zero_minutes_turns_the_whole_thing_off(tmp_path: Path):
     )
     watcher._consume(REFUSED)
     assert client.chains == []
+
+
+def upstream(feed: str, *lines: str) -> list[str]:
+    return [f"2026-10-10T18:45:07+0000 [{feed}] {line}" for line in lines]
+
+
+GIVE_UP = (
+    "giving up: no data after 1 upstream attempts (RESV_GIVEUP_TRIES=1); "
+    "exiting so Dispatcharr can try the next stream"
+)
+
+
+def test_a_source_that_closes_without_data_goes_to_the_back_of_the_chain(tmp_path: Path):
+    cat = chain_with_alternative()
+    before = [row.stream_id for row in cat.chains["uuid-uno"]]
+    watcher, client = build(tmp_path, streaming(), cat)
+    for text in upstream(UNO, "upstream connected edge=piwirejumupa.lol", "upstream EOF", GIVE_UP):
+        watcher._consume(text)
+
+    assert client.chains == [(189, [before[1], before[0], before[2]])]
+    demoted = [row for row in events(watcher) if row["event"] == "demoted"]
+    assert demoted and demoted[0]["cause"] == "empty"
+
+
+def test_an_mp4_or_a_refused_connection_is_not_an_empty_source(tmp_path: Path):
+    watcher, client = build(tmp_path, streaming(), chain_with_alternative())
+    mp4 = upstream(
+        UNO,
+        "upstream connected edge=89.45.12.143:80",
+        "upstream sent an MP4 file, not a live TS; counted as an attempt without data",
+        GIVE_UP,
+    )
+    full = upstream(
+        UNO,
+        "upstream error HTTPError: HTTP Error 407: Proxy Authentication Required; retry in 1s",
+        GIVE_UP,
+    )
+    for text in mp4 + full:
+        watcher._consume(text)
+    assert client.chains == []
+
+
+def test_an_eof_after_data_is_not_an_empty_source(tmp_path: Path):
+    watcher, client = build(tmp_path, streaming(), chain_with_alternative())
+    for text in upstream(UNO, "upstream EOF", "upstream connected edge=piwirejumupa.lol"):
+        watcher._consume(text)
+    assert client.chains == []
+
+
+WEB_3 = Path(__file__).parent / "fixtures" / "delaybuf-2026-10-10.log.gz"
+
+
+def test_the_evening_of_10_october_demotes_the_hanging_source_once(tmp_path: Path):
+    chain = [
+        entry("542034.ts", "DAZN WEB 3 FULL HD"),
+        entry("542033.ts", "DAZN WEB 3 HD"),
+        entry("542032.ts", "DAZN WEB 3 SD"),
+        entry("slate.ts", "Could Not Dispatch", slate=True),
+    ]
+    ids = [row.stream_id for row in chain]
+    hanging = ActiveChannel(uuid="uuid-uno", name="DAZN | Web 3", feed="542034.ts", clients=1)
+    active = {"542034.ts": hanging}
+    watcher, client = build(tmp_path, active, catalogue(chain))
+    for text in gzip.decompress(WEB_3.read_bytes()).decode("utf-8").splitlines():
+        watcher._consume(text)
+
+    assert client.chains == [(189, [ids[1], ids[2], ids[0], ids[3]])]
+    demoted = [row for row in events(watcher) if row["event"] == "demoted"]
+    assert [(row["feed"], row["cause"]) for row in demoted] == [("542034.ts", "empty")]

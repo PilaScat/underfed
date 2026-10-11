@@ -57,6 +57,13 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
 - **One refusal is enough, and it climbs back after thirty minutes** (numbers from the
   operator, on five days of logs: 192 refusal episodes, median 6 s but 140 s at the ninth
   decile; of 135 returns on the same source, 43 within ten minutes and 60 within half an hour).
+- **A source that closes without data is demoted like a refusal** (0.7.0, chosen by the operator
+  on 11 October 2026: one failure, thirty minutes, the same setting). The trigger is a `giving up`
+  whose previous upstream line for that feed is `upstream EOF`. On 10 October, between 18:44 and
+  18:51 UTC, `542034.ts` hung ~20 s and closed four times, while its MP4 placeholder and the 407s of
+  its siblings made 82 more give-ups that must not count: an MP4 means nothing is on air (every
+  source of a DAZN Web channel answers with it, 151 that day), a 407 or 520 is the provider or the
+  VPN. The replay is `tests/fixtures/delaybuf-2026-10-10.log.gz`: one demotion, on `542034.ts`.
 - **The restore re-reads the catalogue.** With the cached copy, a chain already reordered made
   `restored_order` return "nothing to do" and the demotion was dropped without the source ever
   climbing back. The state lives in `.runtime/demotions.json`, so a restart does not lose it.

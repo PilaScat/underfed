@@ -5,7 +5,8 @@ PLUGIN_VERSION = "0.6.0"
 PLUGIN_DESCRIPTION = (
     "Moves a channel off a source that is starving it, drifting its sound or refusing it: "
     "to the next source when the stream arrives at a fraction of its bitrate or with its "
-    "timestamps apart, to the back of the chain when the provider answers 403."
+    "timestamps apart, to the back of the chain when the provider answers 403 or closes the "
+    "connection without sending a byte."
 )
 
 WATCHER_MODULE = "underfed.watcher"
@@ -27,6 +28,7 @@ DEFAULT_DEMOTE_MINUTES = 30
 CAUSE_UNDERFED = "underfed"
 CAUSE_TIMESTAMPS = "timestamps"
 CAUSE_FORBIDDEN = "forbidden"
+CAUSE_EMPTY = "empty"
 
 MIN_TRUSTED_CRATE_MBPS = 0.5
 STORM_WINDOW_SECONDS = 60.0

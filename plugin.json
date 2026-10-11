@@ -1,7 +1,7 @@
 {
   "name": "Underfed",
   "version": "0.6.0",
-  "description": "Moves a channel off a source that is starving it, drifting its sound or refusing it: to the next source when the stream arrives at a fraction of its bitrate or with its timestamps apart, to the back of the chain when the provider answers 403.",
+  "description": "Moves a channel off a source that is starving it, drifting its sound or refusing it: to the next source when the stream arrives at a fraction of its bitrate or with its timestamps apart, to the back of the chain when the provider answers 403 or closes the connection without sending a byte.",
   "author": "PilaScat",
   "license": "MIT",
   "source_type": "external",
@@ -77,7 +77,7 @@
       "label": "Refused source held back (minutes)",
       "type": "number",
       "default": 30,
-      "help_text": "A source the provider answers 403 to goes last in its channel's chain, ahead of the fallback card, so the next tune-in does not start on it again. It climbs back after these minutes. 0 turns it off."
+      "help_text": "A source the provider answers 403 to, or that closes the connection without sending a byte, goes last in its channel's chain, ahead of the fallback card, so the next tune-in does not start on it again. It climbs back after these minutes. 0 turns it off."
     },
     {
       "id": "exclude_channels",

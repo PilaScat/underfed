@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .constants import (
     API_KEY_ENV,
+    CAUSE_EMPTY,
     CAUSE_FORBIDDEN,
     CAUSE_TIMESTAMPS,
     CAUSE_UNDERFED,
@@ -30,6 +31,7 @@ from .constants import (
 from .demotions import Demotion, demoted_order, position_of, restored_order
 from .detector import Detector, Thresholds, Verdict
 from .dispatcharr import ApiError, Catalogue, ChainEntry, Client
+from .empty import EmptySourceTracker
 from .forbidden import parse_refusal
 from .journal import Journal
 from .state import load, save
@@ -77,6 +79,7 @@ class Watcher:
         )
         self.detector = Detector(thresholds)
         self.storms = StormDetector(thresholds)
+        self.empty_sources = EmptySourceTracker()
         self.journal = Journal(Path(options.journal), MAX_RECENT_EVENTS)
         self.tailer = Tailer(Path(options.telemetry))
         self.excluded = {value.strip().casefold() for value in options.exclude if value.strip()}
@@ -146,7 +149,7 @@ class Watcher:
                     self.journal.write("failed", feed=row.feed, detail=str(error))
         self._keep_demotions()
 
-    def _demote(self, feed: str) -> None:
+    def _demote(self, feed: str, cause: str) -> None:
         if self.options.demote_minutes <= 0:
             return
         if any(row.feed == feed for row in self.demotions):
@@ -164,17 +167,17 @@ class Watcher:
         order = demoted_order(chain, entry.stream_id)
         name = getattr(channel, "name", "") or uuid
         if order is None or position is None:
-            self.journal.write("skipped", cause=CAUSE_FORBIDDEN, channel=name, feed=feed,
+            self.journal.write("skipped", cause=cause, channel=name, feed=feed,
                                reason="nowhere lower to go")
             return
         if self.options.observe_only:
-            self.journal.write("would_demote", cause=CAUSE_FORBIDDEN, channel=name, feed=feed,
+            self.journal.write("would_demote", cause=cause, channel=name, feed=feed,
                                minutes=self.options.demote_minutes)
             return
         try:
             self.client.set_chain(channel_id, order)
         except ApiError as error:
-            self.journal.write("failed", cause=CAUSE_FORBIDDEN, channel=name, feed=feed,
+            self.journal.write("failed", cause=cause, channel=name, feed=feed,
                                detail=str(error))
             return
         until = time.time() + self.options.demote_minutes * 60
@@ -188,7 +191,7 @@ class Watcher:
             )
         )
         self._keep_demotions()
-        self.journal.write("demoted", cause=CAUSE_FORBIDDEN, channel=name, feed=feed,
+        self.journal.write("demoted", cause=cause, channel=name, feed=feed,
                            position=position, minutes=self.options.demote_minutes)
 
     def _recall_demotions(self) -> list[Demotion]:
@@ -240,7 +243,11 @@ class Watcher:
 
         refusal = parse_refusal(line)
         if refusal is not None:
-            self._demote(refusal.feed)
+            self._demote(refusal.feed, CAUSE_FORBIDDEN)
+            return
+        empty = self.empty_sources.observe(line)
+        if empty is not None:
+            self._demote(empty.feed, CAUSE_EMPTY)
             return
         sample = parse(line)
         if sample is not None:
