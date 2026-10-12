@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0 — 2026-10-12
+
+- **A source missing whole stretches of video is moved to the next source.** On 12 October
+  2026 a source arrived at full rate (`in=2.07Mbps crate=2.05Mbps`) while dropping 4 seconds
+  out of every 8, picture and sound: the viewer saw lag and the sound out of sync, and neither
+  the shortfall nor the discontinuities noticed. reservoarr 6.3.9 reports the share of each
+  window the video is missing as `holes=N%` at the end of its telemetry line. Two new settings,
+  **Video missing** (10%) and **Confirm missing video for** (30 s): when every line of a source
+  reads that share or more for that long, after the warm-up, the channel moves to the next
+  source, within the same switches per hour. The journal records it as `cause: holes`. With an
+  older reservoarr the field is not there and nothing changes. **Replay the log** counts these
+  triggers too.
+
 ## 0.7.0 — 2026-10-11
 
 - **A source that closes the connection without sending a byte goes to the back of its chain**,
