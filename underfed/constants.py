@@ -5,8 +5,9 @@ PLUGIN_VERSION = "0.8.0"
 PLUGIN_DESCRIPTION = (
     "Moves a channel off a source that is starving it, drifting its sound, missing whole "
     "stretches or refusing it: to the next source when the stream arrives at a fraction of "
-    "its bitrate, with its timestamps apart or with holes in its video, to the back of the "
-    "chain when the provider answers 403 or closes the connection without sending a byte."
+    "its bitrate, with its timestamps apart or with holes in its picture or sound, to the back "
+    "of the chain when the provider answers 403 or closes the connection without sending a "
+    "byte."
 )
 
 WATCHER_MODULE = "underfed.watcher"

@@ -10,13 +10,14 @@ out of segments, and viewers sit there watching a stall that no log explains.
 
 Underfed reads the number that already exists and that nothing else acts on. It also reads
 the timestamp discontinuities ffmpeg logs when a source's sound drifts away from the
-picture, and the share of the video a source is missing while it arrives at full rate.
+picture, and the share of the picture or the sound a source is missing while it arrives at
+full rate.
 
 ## Requirements
 
 - Dispatcharr with the plugin system (the Plugins page)
 - [reservoarr](https://github.com/brko7/reservoarr) as the stream profile, which writes the
-  telemetry this plugin reads; 6.3.9 or later for the missing-video rule
+  telemetry this plugin reads; 6.3.9 or later for the missing picture or sound rule
 - A Dispatcharr API key
 
 ## Install
@@ -40,8 +41,8 @@ changes nothing. Read the journal under Check status, then turn it off.
 | Stable after | A source that holds up this long is treated as recovered. A shorter recovery keeps the shortfall counting, so a source that flickers is still caught |
 | Timestamp discontinuities | Per minute, per source. A healthy source logs a handful, one whose sound drifts away from the picture hundreds. At this many, for Confirm discontinuities for, the source is switched. 0 turns it off |
 | Confirm discontinuities for | How long the discontinuities must last before acting, 15 s by default. A storm is unmistakable and the sound drifts further every second, so this is shorter than Confirm for |
-| Video missing | Share of each telemetry window a source's video is missing, as reservoarr reports it in `holes=`. A healthy source reads 0. At this share, on every line for Confirm missing video for, the source is switched. 0 turns it off; with a reservoarr older than 6.3.9 there is nothing to read |
-| Confirm missing video for | How long the missing share must hold before acting, 30 s by default |
+| Picture or sound missing | Share of each telemetry window a source's picture or sound is missing, as reservoarr reports it in `vholes=` and `aholes=`; the worse of the two counts. A healthy source reads 0. At this share, on every line for Confirm missing picture or sound for, the source is switched. 0 turns it off; with a reservoarr older than 6.3.9 there is nothing to read |
+| Confirm missing picture or sound for | How long the missing share must hold before acting, 30 s by default |
 | Refused source held back | A source the provider answers 403 to, or that closes the connection without sending a byte, goes last in its chain, ahead of the fallback card, so the next tune-in does not start on it again; it climbs back after these minutes. 0 turns it off |
 | Excluded channels | One channel name per line |
 | reservoarr log | Where reservoarr writes `delaybuf.log`. Change it only if `RESV_LOG_DIR` was moved |
@@ -98,10 +99,13 @@ last minute, the watcher moves the channel on the same way.
 
 A source can also arrive at full rate while whole stretches of it are missing: on 12 October
 2026 one dropped 4 s out of every 8, picture and sound, with `in` matching `crate`, no
-discontinuity and ffmpeg's `speed=` at 1.0. reservoarr 6.3.9 measures it on the video
-timestamps and ends each telemetry line with `holes=N%`, the share of that window the video is
-missing. When every line of a source reads Video missing or more for Confirm missing video for,
-after the warm-up, the watcher moves the channel on the same way.
+discontinuity and ffmpeg's `speed=` at 1.0. reservoarr 6.3.9 measures it on the timestamps of
+the incoming picture and sound and ends each telemetry line with `vholes=N% aholes=N%`, the
+share of that window each one is missing; sound that stops while the picture runs reads 100.
+It is measured before ffmpeg, so silence padded in by `RESV_AUDIO_FILL_GAPS` does not hide it.
+When every line of a source reads Picture or sound missing or more, for either of the two, for
+Confirm missing picture or sound for, after the warm-up, the watcher moves the channel on the
+same way. The journal says which one was missing: `what` is `video`, `audio` or `both`.
 
 It refuses to act when any of these is true:
 

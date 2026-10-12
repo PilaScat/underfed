@@ -201,7 +201,7 @@ class Plugin:
         holes = self._holes_percent(settings)
         holes_seconds = int(self._holes_confirm_seconds(settings))
         missing = (
-            f" or missing {holes}% of the video for {holes_seconds}s" if holes else ""
+            f" or missing {holes}% of the picture or sound for {holes_seconds}s" if holes else ""
         )
         mode = (
             "Observing only: it records what it would switch and changes nothing."
@@ -247,7 +247,10 @@ class Plugin:
         verb = "switched" if record.get("event") == "switched" else "would switch"
         channel = record.get("channel") or record.get("feed")
         if record.get("cause") == CAUSE_HOLES:
-            return f"{channel} {verb} missing {record.get('holes_percent')}% of its video"
+            return (
+                f"{channel} {verb} missing {record.get('vholes_percent')}% of its picture "
+                f"and {record.get('aholes_percent')}% of its sound"
+            )
         if record.get("cause") == CAUSE_TIMESTAMPS:
             return (
                 f"{channel} {verb} at {record.get('per_minute')} "

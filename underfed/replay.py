@@ -44,6 +44,7 @@ class HolesHit:
     feed: str
     at: float
     percent: int
+    subject: str
     seconds: float
 
     def when(self, offset_hours: float) -> str:
@@ -99,13 +100,14 @@ class Replay:
             per_hole.setdefault(hole.feed, []).append(hole)
         if per_hole:
             parts.append(
-                f"{len(self.holes)} trigger(s) on missing video, on {len(per_hole)} source(s)."
+                f"{len(self.holes)} trigger(s) on missing picture or sound, "
+                f"on {len(per_hole)} source(s)."
             )
         for feed, holes in sorted(per_hole.items(), key=lambda item: -len(item[1])):
             first_hole = holes[0]
             parts.append(
                 f"{feed}: {len(holes)} trigger(s), first at {first_hole.when(offset_hours)} "
-                f"missing {first_hole.percent}% of its video."
+                f"missing {first_hole.percent}% of its {first_hole.subject}."
             )
         return " ".join(parts)
 
@@ -159,7 +161,11 @@ def run(path: Path, thresholds: Thresholds) -> Replay:
             if found is not None:
                 holes.append(
                     HolesHit(
-                        feed=found.feed, at=found.at, percent=found.percent, seconds=found.seconds
+                        feed=found.feed,
+                        at=found.at,
+                        percent=found.percent,
+                        subject=found.subject,
+                        seconds=found.seconds,
                     )
                 )
     return Replay(

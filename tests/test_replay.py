@@ -142,4 +142,4 @@ def test_missing_video_is_named_in_the_summary(tmp_path: Path):
     outcome = run(write(tmp_path, ticks(0, 6, holed)), QUICK)
     assert len(outcome.holes) == 1
     assert "542062.ts" in outcome.summary()
-    assert "missing 50% of its video" in outcome.summary()
+    assert "missing 50% of its picture and sound" in outcome.summary()

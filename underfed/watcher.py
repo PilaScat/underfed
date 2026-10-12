@@ -358,7 +358,9 @@ class Watcher:
         return {
             "feed": holes.feed,
             "cause": CAUSE_HOLES,
-            "holes_percent": holes.percent,
+            "what": holes.what,
+            "vholes_percent": holes.video_percent,
+            "aholes_percent": holes.audio_percent,
             "holes_seconds": round(holes.seconds),
         }
 

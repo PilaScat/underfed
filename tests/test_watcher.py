@@ -500,7 +500,9 @@ def test_a_channel_missing_half_its_video_is_moved_to_the_next_source(tmp_path: 
     assert client.switched == ["uuid-uno"]
     switched = [row for row in events(watcher) if row["event"] == "switched"]
     assert switched[0]["cause"] == "holes"
-    assert switched[0]["holes_percent"] == 50
+    assert switched[0]["vholes_percent"] == 50
+    assert switched[0]["aholes_percent"] == 50
+    assert switched[0]["what"] == "both"
 
 
 def test_missing_video_counts_against_the_hourly_limit(tmp_path: Path):

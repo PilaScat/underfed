@@ -74,14 +74,14 @@
     },
     {
       "id": "holes_percent",
-      "label": "Video missing (percent)",
+      "label": "Picture or sound missing (percent)",
       "type": "number",
       "default": 10,
-      "help_text": "A source can arrive at full rate while dropping whole stretches of picture and sound: the viewer sees lag and the sound out of sync, and neither the shortfall nor the discontinuities notice. reservoarr 6.3.9 or later reports the share of each window the video is missing as holes=N%; at this share the source is switched. A healthy source reads 0. 0 turns it off; with an older reservoarr nothing happens."
+      "help_text": "A source can arrive at full rate while dropping whole stretches of picture or sound: the viewer sees lag, hears gaps or loses the sound, and neither the shortfall nor the discontinuities notice. reservoarr 6.3.9 or later reports the share of each window the picture and the sound are missing as vholes=N% and aholes=N%; at this share, for either of the two, the source is switched. A healthy source reads 0. 0 turns it off; with an older reservoarr nothing happens."
     },
     {
       "id": "holes_confirm_seconds",
-      "label": "Confirm missing video for (seconds)",
+      "label": "Confirm missing picture or sound for (seconds)",
       "type": "number",
       "default": 30,
       "help_text": "How long every telemetry line of a source must report at least the missing share above before acting."

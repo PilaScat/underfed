@@ -25,10 +25,11 @@ def line(
     buf: float = 0.1,
     reconnects: int = 2,
     total: int | None = None,
-    holes: int | None = None,
+    vholes: int | None = None,
+    aholes: int | None = None,
 ) -> str:
     counter = f"in_total={total}MB " if total is not None else ""
-    missing = f" holes={holes}%" if holes is not None else ""
+    missing = f" vholes={vholes}% aholes={aholes}%" if vholes is not None else ""
     return (
         f"{stamp(tick)} [{feed}] cushion={cushion}s(pcr) buf={buf}MB "
         f"out={out:.2f}Mbps in={inbound:.2f}Mbps crate={crate:.2f}Mbps "
@@ -65,7 +66,17 @@ def storm(start: int, seconds: int, per_second: int = 28, feed: str = "542059.ts
     ]
 
 
-def holed(tick: int, percent: int = 50, feed: str = "542062.ts") -> str:
+def holed(
+    tick: int, percent: int = 50, feed: str = "542062.ts", audio: int | None = None
+) -> str:
     return line(
-        tick, feed=feed, cushion=1, inbound=2.07, crate=2.05, out=2.0, buf=0.4, holes=percent
+        tick, feed=feed, cushion=1, inbound=2.07, crate=2.05, out=2.0, buf=0.4,
+        vholes=percent, aholes=percent if audio is None else audio,
+    )
+
+
+def muted(tick: int, feed: str = "542062.ts") -> str:
+    return line(
+        tick, feed=feed, cushion=12, inbound=4.4, crate=4.4, out=4.3, buf=6.0,
+        vholes=0, aholes=100,
     )
