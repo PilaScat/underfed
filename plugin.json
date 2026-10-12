@@ -73,6 +73,20 @@
       "help_text": "How long the timestamp discontinuities must stay above the threshold before acting. A storm is unmistakable and the sound drifts further with every second of it, so this is shorter than the shortfall's confirmation."
     },
     {
+      "id": "holes_percent",
+      "label": "Video missing (percent)",
+      "type": "number",
+      "default": 10,
+      "help_text": "A source can arrive at full rate while dropping whole stretches of picture and sound: the viewer sees lag and the sound out of sync, and neither the shortfall nor the discontinuities notice. reservoarr 6.3.9 or later reports the share of each window the video is missing as holes=N%; at this share the source is switched. A healthy source reads 0. 0 turns it off; with an older reservoarr nothing happens."
+    },
+    {
+      "id": "holes_confirm_seconds",
+      "label": "Confirm missing video for (seconds)",
+      "type": "number",
+      "default": 30,
+      "help_text": "How long every telemetry line of a source must report at least the missing share above before acting."
+    },
+    {
       "id": "demote_minutes",
       "label": "Refused source held back (minutes)",
       "type": "number",

@@ -19,6 +19,7 @@ LINE = re.compile(
     r"crate=(?P<crate>[\d.]+)Mbps"
     r"(?:\s+in_total=(?P<total>\d+)MB)?"
     r"(?:.*?\breconnects=(?P<reconnects>\d+))?"
+    r"(?:.*?\bholes=(?P<holes>\d+)%)?"
 )
 
 
@@ -34,6 +35,7 @@ class Sample:
     crate_mbps: float
     reconnects: int
     total_mb: int | None = None
+    holes_percent: int | None = None
 
     @property
     def ratio(self) -> float:
@@ -73,6 +75,7 @@ def parse(line: str) -> Sample | None:
         crate_mbps=float(match["crate"]),
         reconnects=int(match["reconnects"] or 0),
         total_mb=int(match["total"]) if match["total"] is not None else None,
+        holes_percent=int(match["holes"]) if match["holes"] is not None else None,
     )
 
 

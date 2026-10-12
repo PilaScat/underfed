@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 
 from .constants import (
     DEFAULT_CONFIRM_SECONDS,
+    DEFAULT_HOLES_CONFIRM_SECONDS,
+    DEFAULT_HOLES_PERCENT,
     DEFAULT_RATIO_PERCENT,
     DEFAULT_STABLE_SECONDS,
     DEFAULT_STORM_CONFIRM_SECONDS,
@@ -30,6 +32,8 @@ class Thresholds:
     min_crate_mbps: float = MIN_TRUSTED_CRATE_MBPS
     storm_per_minute: int = DEFAULT_STORM_PER_MINUTE
     storm_confirm_seconds: float = DEFAULT_STORM_CONFIRM_SECONDS
+    holes_percent: int = DEFAULT_HOLES_PERCENT
+    holes_confirm_seconds: float = DEFAULT_HOLES_CONFIRM_SECONDS
 
     @classmethod
     def from_settings(cls, settings: dict) -> Thresholds:
@@ -48,6 +52,10 @@ class Thresholds:
             storm_per_minute=max(int(number("storm_per_minute", DEFAULT_STORM_PER_MINUTE)), 0),
             storm_confirm_seconds=max(
                 number("storm_confirm_seconds", DEFAULT_STORM_CONFIRM_SECONDS), 5.0
+            ),
+            holes_percent=min(max(int(number("holes_percent", DEFAULT_HOLES_PERCENT)), 0), 100),
+            holes_confirm_seconds=max(
+                number("holes_confirm_seconds", DEFAULT_HOLES_CONFIRM_SECONDS), 5.0
             ),
         )
 

@@ -5,7 +5,7 @@ from collections import Counter
 from pathlib import Path
 
 import pytest
-from conftest import healthy, starving, storm, ticks
+from conftest import healthy, holed, starving, storm, ticks
 
 from underfed.detector import Thresholds
 from underfed.replay import run
@@ -136,3 +136,10 @@ def test_a_stricter_threshold_finds_more(tmp_path: Path):
     strict = run(path, Thresholds(ratio=0.90, confirm_seconds=45, warmup_seconds=60))
     assert lenient.hits == []
     assert strict.hits != []
+
+
+def test_missing_video_is_named_in_the_summary(tmp_path: Path):
+    outcome = run(write(tmp_path, ticks(0, 6, holed)), QUICK)
+    assert len(outcome.holes) == 1
+    assert "542062.ts" in outcome.summary()
+    assert "missing 50% of its video" in outcome.summary()

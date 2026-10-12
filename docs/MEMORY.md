@@ -64,6 +64,15 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
   its siblings made 82 more give-ups that must not count: an MP4 means nothing is on air (every
   source of a DAZN Web channel answers with it, 151 that day), a 407 or 520 is the provider or the
   VPN. The replay is `tests/fixtures/delaybuf-2026-10-10.log.gz`: one demotion, on `542034.ts`.
+- **Missing video** (0.8.0, numbers chosen by the operator on 12 October 2026: 10% for 30 s,
+  after the 60 s warm-up). That day `542062.ts` arrived at full rate (`in=2.07 crate=2.05`)
+  while dropping 4 s out of every 8: 732 audio packets and 584 frames in 49 s of output instead
+  of ~1,540 and ~1,230. No other rule sees it: the PCR jumps with the content, the jumps stay
+  under ffmpeg's 10 s threshold, `speed=` stays at 1.0. The signal is reservoarr's `holes=N%`
+  (6.3.9, measured on the video DTS in the parser), not a probe of Dispatcharr's output: no
+  extra client, no sampling. Healthy feeds read 0, the bench fixture with 4 s in 8 missing 35-52
+  per window. Without the field (older reservoarr) the rule is silent. There is no replay
+  fixture yet: the first production log with `holes=` becomes it.
 - **The restore re-reads the catalogue.** With the cached copy, a chain already reordered made
   `restored_order` return "nothing to do" and the demotion was dropped without the source ever
   climbing back. The state lives in `.runtime/demotions.json`, so a restart does not lose it.

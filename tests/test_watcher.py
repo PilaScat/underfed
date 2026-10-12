@@ -7,7 +7,7 @@ from argparse import Namespace
 from dataclasses import replace
 from pathlib import Path
 
-from conftest import healthy, starving, storm, ticks
+from conftest import healthy, holed, starving, storm, ticks
 
 from underfed.dispatcharr import ActiveChannel, ApiError, Catalogue, ChainEntry
 from underfed.watcher import Watcher, arguments
@@ -80,6 +80,8 @@ def options(tmp_path: Path, **overrides) -> Namespace:
         "max_switches": 2,
         "storm_per_minute": 100,
         "storm_confirm_seconds": 15.0,
+        "holes_percent": 10,
+        "holes_confirm_seconds": 30.0,
         "exclude": [],
         "observe_only": False,
         "demote_minutes": 30.0,
@@ -487,3 +489,27 @@ def test_the_evening_of_10_october_demotes_the_hanging_source_once(tmp_path: Pat
     assert client.chains == [(189, [ids[1], ids[2], ids[0], ids[3]])]
     demoted = [row for row in events(watcher) if row["event"] == "demoted"]
     assert [(row["feed"], row["cause"]) for row in demoted] == [("542034.ts", "empty")]
+
+
+def test_a_channel_missing_half_its_video_is_moved_to_the_next_source(tmp_path: Path):
+    watcher, client = build(tmp_path, streaming(), chain_with_alternative())
+
+    for text in ticks(0, 6, holed, feed=UNO):
+        watcher._consume(text)
+
+    assert client.switched == ["uuid-uno"]
+    switched = [row for row in events(watcher) if row["event"] == "switched"]
+    assert switched[0]["cause"] == "holes"
+    assert switched[0]["holes_percent"] == 50
+
+
+def test_missing_video_counts_against_the_hourly_limit(tmp_path: Path):
+    watcher, client = build(tmp_path, streaming(), chain_with_alternative(), max_switches=1)
+    starve(watcher)
+    watcher.active = client.active()
+
+    for text in ticks(20, 6, holed, feed=UNO):
+        watcher._consume(text)
+
+    assert client.switched == ["uuid-uno"]
+    assert events(watcher)[-1]["reason"] == "switch limit reached"

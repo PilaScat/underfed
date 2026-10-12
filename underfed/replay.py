@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
 from .detector import Detector, Thresholds
+from .holes import HolesDetector
 from .storm import StormDetector
 from .telemetry import parse, parse_discontinuity
 
@@ -39,17 +40,29 @@ class StormHit:
 
 
 @dataclass(frozen=True)
+class HolesHit:
+    feed: str
+    at: float
+    percent: int
+    seconds: float
+
+    def when(self, offset_hours: float) -> str:
+        return when(self.at, offset_hours)
+
+
+@dataclass(frozen=True)
 class Replay:
     lines: int
     samples: int
     feeds: dict[str, int]
     hits: list[Hit]
     storms: list[StormHit]
+    holes: list[HolesHit] = field(default_factory=list)
 
     def summary(self, offset_hours: float = 0.0) -> str:
         if not self.samples:
             return f"No telemetry found in {self.lines} line(s). Is the path right?"
-        if not self.hits and not self.storms:
+        if not self.hits and not self.storms and not self.holes:
             return (
                 f"{self.samples} sample(s) across {len(self.feeds)} source(s): "
                 f"nothing would have been switched."
@@ -81,14 +94,29 @@ class Replay:
                 f"{feed}: {len(storms)} trigger(s), first at {opening.when(offset_hours)} "
                 f"at {opening.per_minute} a minute."
             )
+        per_hole: dict[str, list[HolesHit]] = {}
+        for hole in self.holes:
+            per_hole.setdefault(hole.feed, []).append(hole)
+        if per_hole:
+            parts.append(
+                f"{len(self.holes)} trigger(s) on missing video, on {len(per_hole)} source(s)."
+            )
+        for feed, holes in sorted(per_hole.items(), key=lambda item: -len(item[1])):
+            first_hole = holes[0]
+            parts.append(
+                f"{feed}: {len(holes)} trigger(s), first at {first_hole.when(offset_hours)} "
+                f"missing {first_hole.percent}% of its video."
+            )
         return " ".join(parts)
 
 
 def run(path: Path, thresholds: Thresholds) -> Replay:
     detector = Detector(thresholds)
     storm_detector = StormDetector(thresholds)
+    holes_detector = HolesDetector(thresholds)
     hits: list[Hit] = []
     storms: list[StormHit] = []
+    holes: list[HolesHit] = []
     feeds: dict[str, int] = {}
     lines = 0
     samples = 0
@@ -127,4 +155,13 @@ def run(path: Path, thresholds: Thresholds) -> Replay:
                         seconds=verdict.seconds,
                     )
                 )
-    return Replay(lines=lines, samples=samples, feeds=feeds, hits=hits, storms=storms)
+            found = holes_detector.observe(sample)
+            if found is not None:
+                holes.append(
+                    HolesHit(
+                        feed=found.feed, at=found.at, percent=found.percent, seconds=found.seconds
+                    )
+                )
+    return Replay(
+        lines=lines, samples=samples, feeds=feeds, hits=hits, storms=storms, holes=holes
+    )

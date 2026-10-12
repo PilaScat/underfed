@@ -25,12 +25,14 @@ def line(
     buf: float = 0.1,
     reconnects: int = 2,
     total: int | None = None,
+    holes: int | None = None,
 ) -> str:
     counter = f"in_total={total}MB " if total is not None else ""
+    missing = f" holes={holes}%" if holes is not None else ""
     return (
         f"{stamp(tick)} [{feed}] cushion={cushion}s(pcr) buf={buf}MB "
         f"out={out:.2f}Mbps in={inbound:.2f}Mbps crate={crate:.2f}Mbps "
-        f"{counter}reconnects={reconnects} ccerr=1 pcrrej=0 disc=1 sync=1 pcr_back=0"
+        f"{counter}reconnects={reconnects} ccerr=1 pcrrej=0 disc=1 sync=1 pcr_back=0{missing}"
     )
 
 
@@ -61,3 +63,9 @@ def storm(start: int, seconds: int, per_second: int = 28, feed: str = "542059.ts
         for second in range(start, start + seconds)
         for index in range(per_second)
     ]
+
+
+def holed(tick: int, percent: int = 50, feed: str = "542062.ts") -> str:
+    return line(
+        tick, feed=feed, cushion=1, inbound=2.07, crate=2.05, out=2.0, buf=0.4, holes=percent
+    )

@@ -199,6 +199,8 @@ def test_settings_read_by_the_code_are_declared_in_the_manifest(manifest):
         "stable_seconds",
         "storm_per_minute",
         "storm_confirm_seconds",
+        "holes_percent",
+        "holes_confirm_seconds",
         "exclude_channels",
         "telemetry_path",
         "api_url",
@@ -211,6 +213,8 @@ def test_the_settings_become_the_watcher_command_line(loaded_module):
         "ratio_percent": 65,
         "confirm_seconds": 30,
         "storm_confirm_seconds": 20,
+        "holes_percent": 25,
+        "holes_confirm_seconds": 45,
         "max_switches": 3,
         "exclude_channels": "Sky | Sport Uno\n\nRai 1\n",
         "observe_only": False,
@@ -220,6 +224,8 @@ def test_the_settings_become_the_watcher_command_line(loaded_module):
     assert arguments[arguments.index("--ratio-percent") + 1] == "65.0"
     assert arguments[arguments.index("--max-switches") + 1] == "3"
     assert arguments[arguments.index("--storm-confirm-seconds") + 1] == "20.0"
+    assert arguments[arguments.index("--holes-percent") + 1] == "25"
+    assert arguments[arguments.index("--holes-confirm-seconds") + 1] == "45.0"
     assert arguments.count("--exclude") == 2
     assert "--observe-only" not in arguments
 

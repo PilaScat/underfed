@@ -94,3 +94,16 @@ def test_other_lines_are_not_timestamp_discontinuities():
 
 def test_a_timestamp_discontinuity_is_not_telemetry():
     assert parse(VIDEO_JUMP) is None
+
+
+def test_the_missing_video_share_is_read():
+    sample = parse(REAL + " holes=50%")
+    assert sample is not None
+    assert sample.holes_percent == 50
+    assert sample.reconnects == 2
+
+
+def test_a_line_from_an_older_reservoarr_has_no_missing_video_share():
+    sample = parse(REAL)
+    assert sample is not None
+    assert sample.holes_percent is None

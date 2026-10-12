@@ -14,9 +14,12 @@ try:
     from .underfed import state as state_module
     from .underfed.constants import (
         API_KEY_ENV,
+        CAUSE_HOLES,
         CAUSE_TIMESTAMPS,
         DEFAULT_API_URL,
         DEFAULT_DEMOTE_MINUTES,
+        DEFAULT_HOLES_CONFIRM_SECONDS,
+        DEFAULT_HOLES_PERCENT,
         DEFAULT_STORM_CONFIRM_SECONDS,
         DEFAULT_STORM_PER_MINUTE,
         DEFAULT_TELEMETRY_PATH,
@@ -35,9 +38,12 @@ except ImportError:
     from underfed import state as state_module
     from underfed.constants import (
         API_KEY_ENV,
+        CAUSE_HOLES,
         CAUSE_TIMESTAMPS,
         DEFAULT_API_URL,
         DEFAULT_DEMOTE_MINUTES,
+        DEFAULT_HOLES_CONFIRM_SECONDS,
+        DEFAULT_HOLES_PERCENT,
         DEFAULT_STORM_CONFIRM_SECONDS,
         DEFAULT_STORM_PER_MINUTE,
         DEFAULT_TELEMETRY_PATH,
@@ -192,13 +198,19 @@ class Plugin:
             if storm
             else ""
         )
+        holes = self._holes_percent(settings)
+        holes_seconds = int(self._holes_confirm_seconds(settings))
+        missing = (
+            f" or missing {holes}% of the video for {holes_seconds}s" if holes else ""
+        )
         mode = (
             "Observing only: it records what it would switch and changes nothing."
             if settings.get("observe_only", True)
             else "Switching is live."
         )
         return (
-            f"Watcher running below {percent}% of content rate for {seconds}s{jumps}. {mode}"
+            f"Watcher running below {percent}% of content rate for {seconds}s{jumps}{missing}. "
+            f"{mode}"
         )
 
     def _status(self, context: dict) -> dict:
@@ -234,6 +246,8 @@ class Plugin:
     def _describe(self, record: dict) -> str:
         verb = "switched" if record.get("event") == "switched" else "would switch"
         channel = record.get("channel") or record.get("feed")
+        if record.get("cause") == CAUSE_HOLES:
+            return f"{channel} {verb} missing {record.get('holes_percent')}% of its video"
         if record.get("cause") == CAUSE_TIMESTAMPS:
             return (
                 f"{channel} {verb} at {record.get('per_minute')} "
@@ -252,6 +266,7 @@ class Plugin:
             "sources": len(outcome.feeds),
             "triggers": len(outcome.hits),
             "storms": len(outcome.storms),
+            "holes": len(outcome.holes),
         }
 
     def _restart(self, context: dict) -> dict:
@@ -291,6 +306,8 @@ class Plugin:
             stable_seconds=max(_as_number(settings.get("stable_seconds"), 180), 0.0),
             storm_per_minute=self._storm_per_minute(settings),
             storm_confirm_seconds=self._storm_confirm_seconds(settings),
+            holes_percent=self._holes_percent(settings),
+            holes_confirm_seconds=self._holes_confirm_seconds(settings),
         )
 
     def _storm_per_minute(self, settings: dict) -> int:
@@ -299,6 +316,15 @@ class Plugin:
     def _storm_confirm_seconds(self, settings: dict) -> float:
         return max(
             _as_number(settings.get("storm_confirm_seconds"), DEFAULT_STORM_CONFIRM_SECONDS), 5.0
+        )
+
+    def _holes_percent(self, settings: dict) -> int:
+        value = int(_as_number(settings.get("holes_percent"), DEFAULT_HOLES_PERCENT))
+        return min(max(value, 0), 100)
+
+    def _holes_confirm_seconds(self, settings: dict) -> float:
+        return max(
+            _as_number(settings.get("holes_confirm_seconds"), DEFAULT_HOLES_CONFIRM_SECONDS), 5.0
         )
 
     def _demote_minutes(self, settings: dict) -> float:
@@ -326,6 +352,10 @@ class Plugin:
             str(self._storm_per_minute(settings)),
             "--storm-confirm-seconds",
             str(self._storm_confirm_seconds(settings)),
+            "--holes-percent",
+            str(self._holes_percent(settings)),
+            "--holes-confirm-seconds",
+            str(self._holes_confirm_seconds(settings)),
             "--demote-minutes",
             str(self._demote_minutes(settings)),
         ]

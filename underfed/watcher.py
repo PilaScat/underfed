@@ -12,11 +12,14 @@ from .constants import (
     API_KEY_ENV,
     CAUSE_EMPTY,
     CAUSE_FORBIDDEN,
+    CAUSE_HOLES,
     CAUSE_TIMESTAMPS,
     CAUSE_UNDERFED,
     DEFAULT_API_URL,
     DEFAULT_CONFIRM_SECONDS,
     DEFAULT_DEMOTE_MINUTES,
+    DEFAULT_HOLES_CONFIRM_SECONDS,
+    DEFAULT_HOLES_PERCENT,
     DEFAULT_MAX_SWITCHES_PER_HOUR,
     DEFAULT_RATIO_PERCENT,
     DEFAULT_STABLE_SECONDS,
@@ -33,6 +36,7 @@ from .detector import Detector, Thresholds, Verdict
 from .dispatcharr import ApiError, Catalogue, ChainEntry, Client
 from .empty import EmptySourceTracker
 from .forbidden import parse_refusal
+from .holes import Holes, HolesDetector
 from .journal import Journal
 from .state import load, save
 from .storm import Storm, StormDetector
@@ -59,6 +63,10 @@ def arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--storm-confirm-seconds", type=float, default=DEFAULT_STORM_CONFIRM_SECONDS
     )
+    parser.add_argument("--holes-percent", type=int, default=DEFAULT_HOLES_PERCENT)
+    parser.add_argument(
+        "--holes-confirm-seconds", type=float, default=DEFAULT_HOLES_CONFIRM_SECONDS
+    )
     parser.add_argument("--demote-minutes", type=float, default=DEFAULT_DEMOTE_MINUTES)
     parser.add_argument("--exclude", action="append", default=[])
     parser.add_argument("--observe-only", action="store_true")
@@ -76,9 +84,12 @@ class Watcher:
             stable_seconds=max(options.stable_seconds, 0.0),
             storm_per_minute=max(options.storm_per_minute, 0),
             storm_confirm_seconds=max(options.storm_confirm_seconds, 5.0),
+            holes_percent=min(max(options.holes_percent, 0), 100),
+            holes_confirm_seconds=max(options.holes_confirm_seconds, 5.0),
         )
         self.detector = Detector(thresholds)
         self.storms = StormDetector(thresholds)
+        self.holes = HolesDetector(thresholds)
         self.empty_sources = EmptySourceTracker()
         self.journal = Journal(Path(options.journal), MAX_RECENT_EVENTS)
         self.tailer = Tailer(Path(options.telemetry))
@@ -106,6 +117,8 @@ class Watcher:
             confirm_seconds=self.options.confirm_seconds,
             storm_per_minute=self.options.storm_per_minute,
             storm_confirm_seconds=self.options.storm_confirm_seconds,
+            holes_percent=self.options.holes_percent,
+            holes_confirm_seconds=self.options.holes_confirm_seconds,
         )
         while self._running:
             self.step()
@@ -252,8 +265,11 @@ class Watcher:
         sample = parse(line)
         if sample is not None:
             verdict = self.detector.observe(sample)
+            holes = self.holes.observe(sample)
             if verdict is not None:
                 self._act(verdict.feed, self._facts(verdict))
+            elif holes is not None:
+                self._act(holes.feed, self._holes_facts(holes))
             return
         jump = parse_discontinuity(line)
         if jump is not None:
@@ -336,6 +352,14 @@ class Watcher:
             "cause": CAUSE_TIMESTAMPS,
             "per_minute": storm.per_minute,
             "storm_seconds": round(storm.seconds),
+        }
+
+    def _holes_facts(self, holes: Holes) -> dict:
+        return {
+            "feed": holes.feed,
+            "cause": CAUSE_HOLES,
+            "holes_percent": holes.percent,
+            "holes_seconds": round(holes.seconds),
         }
 
     def _is_excluded(self, name: str) -> bool:
