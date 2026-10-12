@@ -69,7 +69,8 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
   while dropping 4 s out of every 8: 732 audio packets and 584 frames in 49 s of output instead
   of ~1,540 and ~1,230. No other rule sees it: the PCR jumps with the content, the jumps stay
   under ffmpeg's 10 s threshold, `speed=` stays at 1.0. The signal is reservoarr's
-  `vholes=N% aholes=N%` (6.3.9, measured in the parser on the incoming PES timestamps, so the
+  `vholes=N% aholes=N%` (proposed for reservoarr 6.3.9, branch `feat/holes-telemetry` of the
+  fork, not released at 0.8.0; measured in the parser on the incoming PES timestamps, so the
   silence of `RESV_AUDIO_FILL_GAPS` does not hide it), not a probe of Dispatcharr's output: no
   extra client, no sampling. Healthy feeds read 0/0; the bench fixtures with 4 s in 8 missing
   read 35-52 (picture) and 46-51 (sound) per window, sound stopping reads 100. AAC decoder

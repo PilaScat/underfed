@@ -5,14 +5,15 @@
 - **A source missing whole stretches of picture or sound is moved to the next source.** On
   12 October 2026 a source arrived at full rate (`in=2.07Mbps crate=2.05Mbps`) while dropping
   4 seconds out of every 8, picture and sound: the viewer saw lag and the sound out of sync, and
-  neither the shortfall nor the discontinuities noticed. reservoarr 6.3.9 reports the share of
-  each window the picture and the sound are missing as `vholes=N% aholes=N%` at the end of its
-  telemetry line, sound that stops while the picture runs included. Two new settings,
+  neither the shortfall nor the discontinuities noticed. A reservoarr that measures it reports
+  the share of each window the picture and the sound are missing as `vholes=N% aholes=N%` at
+  the end of its telemetry line, sound that stops while the picture runs included; the change
+  is proposed to reservoarr for 6.3.9 and is not in a release yet. Two new settings,
   **Picture or sound missing** (10%) and **Confirm missing picture or sound for** (30 s): when
   every line of a source reads that share or more, for either of the two, for that long, after
   the warm-up, the channel moves to the next source, within the same switches per hour. The
   journal records it as `cause: holes`, with both shares and `what` (`video`, `audio` or
-  `both`). With an older reservoarr the fields are not there and nothing changes. **Replay the
+  `both`). Without those fields, as with reservoarr 6.3.8, nothing changes. **Replay the
   log** counts these triggers too.
 
 ## 0.7.0 — 2026-10-11
