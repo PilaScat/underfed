@@ -80,3 +80,11 @@ def muted(tick: int, feed: str = "542062.ts") -> str:
         tick, feed=feed, cushion=12, inbound=4.4, crate=4.4, out=4.3, buf=6.0,
         vholes=0, aholes=100,
     )
+
+
+def corrupt_loop(second: int, feed: str = "198329.ts", dts: int = 1143489600) -> str:
+    moment = (BASE + timedelta(seconds=second)).strftime("%Y-%m-%dT%H:%M:%S%z")
+    return (
+        f"{moment} [{feed}] corrupt-loop detected in stream (dts={dts} x3) "
+        f"- forcing upstream reconnect + buffer flush"
+    )

@@ -15,11 +15,14 @@ try:
     from .underfed.constants import (
         API_KEY_ENV,
         CAUSE_HOLES,
+        CAUSE_LOOPS,
         CAUSE_TIMESTAMPS,
         DEFAULT_API_URL,
         DEFAULT_DEMOTE_MINUTES,
         DEFAULT_HOLES_CONFIRM_SECONDS,
         DEFAULT_HOLES_PERCENT,
+        DEFAULT_LOOPS_COUNT,
+        DEFAULT_LOOPS_MINUTES,
         DEFAULT_STORM_CONFIRM_SECONDS,
         DEFAULT_STORM_PER_MINUTE,
         DEFAULT_TELEMETRY_PATH,
@@ -39,11 +42,14 @@ except ImportError:
     from underfed.constants import (
         API_KEY_ENV,
         CAUSE_HOLES,
+        CAUSE_LOOPS,
         CAUSE_TIMESTAMPS,
         DEFAULT_API_URL,
         DEFAULT_DEMOTE_MINUTES,
         DEFAULT_HOLES_CONFIRM_SECONDS,
         DEFAULT_HOLES_PERCENT,
+        DEFAULT_LOOPS_COUNT,
+        DEFAULT_LOOPS_MINUTES,
         DEFAULT_STORM_CONFIRM_SECONDS,
         DEFAULT_STORM_PER_MINUTE,
         DEFAULT_TELEMETRY_PATH,
@@ -203,13 +209,19 @@ class Plugin:
         missing = (
             f" or missing {holes}% of the picture or sound for {holes_seconds}s" if holes else ""
         )
+        loops = self._loops_count(settings)
+        loops_minutes = int(self._loops_minutes(settings))
+        looping = (
+            f" or after {loops} corrupt-packet loops in {loops_minutes} minutes" if loops else ""
+        )
         mode = (
             "Observing only: it records what it would switch and changes nothing."
             if settings.get("observe_only", True)
             else "Switching is live."
         )
         return (
-            f"Watcher running below {percent}% of content rate for {seconds}s{jumps}{missing}. "
+            f"Watcher running below {percent}% of content rate for {seconds}s"
+            f"{jumps}{missing}{looping}. "
             f"{mode}"
         )
 
@@ -251,6 +263,8 @@ class Plugin:
                 f"{channel} {verb} missing {record.get('vholes_percent')}% of its picture "
                 f"and {record.get('aholes_percent')}% of its sound"
             )
+        if record.get("cause") == CAUSE_LOOPS:
+            return f"{channel} {verb} after {record.get('loops')} corrupt-packet loops"
         if record.get("cause") == CAUSE_TIMESTAMPS:
             return (
                 f"{channel} {verb} at {record.get('per_minute')} "
@@ -270,6 +284,7 @@ class Plugin:
             "triggers": len(outcome.hits),
             "storms": len(outcome.storms),
             "holes": len(outcome.holes),
+            "loops": len(outcome.loops),
         }
 
     def _restart(self, context: dict) -> dict:
@@ -311,6 +326,8 @@ class Plugin:
             storm_confirm_seconds=self._storm_confirm_seconds(settings),
             holes_percent=self._holes_percent(settings),
             holes_confirm_seconds=self._holes_confirm_seconds(settings),
+            loops_count=self._loops_count(settings),
+            loops_minutes=self._loops_minutes(settings),
         )
 
     def _storm_per_minute(self, settings: dict) -> int:
@@ -329,6 +346,12 @@ class Plugin:
         return max(
             _as_number(settings.get("holes_confirm_seconds"), DEFAULT_HOLES_CONFIRM_SECONDS), 5.0
         )
+
+    def _loops_count(self, settings: dict) -> int:
+        return max(int(_as_number(settings.get("loops_count"), DEFAULT_LOOPS_COUNT)), 0)
+
+    def _loops_minutes(self, settings: dict) -> float:
+        return max(_as_number(settings.get("loops_minutes"), DEFAULT_LOOPS_MINUTES), 1.0)
 
     def _demote_minutes(self, settings: dict) -> float:
         return max(_as_number(settings.get("demote_minutes"), DEFAULT_DEMOTE_MINUTES), 0.0)
@@ -359,6 +382,10 @@ class Plugin:
             str(self._holes_percent(settings)),
             "--holes-confirm-seconds",
             str(self._holes_confirm_seconds(settings)),
+            "--loops-count",
+            str(self._loops_count(settings)),
+            "--loops-minutes",
+            str(self._loops_minutes(settings)),
             "--demote-minutes",
             str(self._demote_minutes(settings)),
         ]

@@ -77,6 +77,14 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
   errors were looked at and left out: 36 lines in 18 days, at most 9 in a minute. Without the
   fields (older reservoarr) the rule is silent. There is no replay
   fixture yet: the first production log with `vholes=` becomes it.
+- **Corrupt-packet loops** (0.9.0, issue #1 from mels0n; numbers proposed there and chosen by
+  the operator on 24 October 2026: 3 loops within 5 minutes, on by default). The signal is
+  reservoarr's `corrupt-loop detected in stream` line, one per forced reconnect; the `flushed
+  reservoir` line that follows is not counted. A looping "channel offline" card logged six in ten
+  minutes at `in` = `crate` with `disc=0`, so no other rule fired. Here it is rare: one line from
+  10 to 24 October 2026, on `198329.ts`. The window includes its edge (3 loops exactly 5 minutes
+  apart trigger) and the count starts over after a trigger. There is no replay fixture yet: a log
+  from that provider becomes it.
 - **The restore re-reads the catalogue.** With the cached copy, a chain already reordered made
   `restored_order` return "nothing to do" and the demotion was dropped without the source ever
   climbing back. The state lives in `.runtime/demotions.json`, so a restart does not lose it.

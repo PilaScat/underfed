@@ -1,7 +1,7 @@
 {
   "name": "Underfed",
   "version": "0.8.0",
-  "description": "Moves a channel off a source that is starving it, drifting its sound or refusing it: to the next source when the stream arrives at a fraction of its bitrate or with its timestamps apart, to the back of the chain when the provider answers 403 or closes the connection without sending a byte.",
+  "description": "Moves a channel off a source that is starving it, drifting its sound, missing whole stretches, looping on corrupt packets or refusing it: to the next source when the stream arrives at a fraction of its bitrate, with its timestamps apart, with holes in its picture or sound or forcing reconnect after reconnect, to the back of the chain when the provider answers 403 or closes the connection without sending a byte.",
   "author": "PilaScat",
   "license": "MIT",
   "source_type": "external",
@@ -85,6 +85,20 @@
       "type": "number",
       "default": 30,
       "help_text": "How long every telemetry line of a source must report at least the missing share above before acting."
+    },
+    {
+      "id": "loops_count",
+      "label": "Corrupt-packet loops",
+      "type": "number",
+      "default": 3,
+      "help_text": "When ffmpeg keeps reporting the same corrupt packet, reservoarr logs \"corrupt-loop detected\", reconnects and flushes its buffer. A source that does it again and again, such as a provider's looping \"channel offline\" card, never fails and is never starved, so no other rule moves it. At this many loops within the window below the source is switched. 0 turns it off."
+    },
+    {
+      "id": "loops_minutes",
+      "label": "Corrupt-packet loops within (minutes)",
+      "type": "number",
+      "default": 5,
+      "help_text": "The window the loops above are counted over, per source."
     },
     {
       "id": "demote_minutes",

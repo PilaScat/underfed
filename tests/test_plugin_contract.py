@@ -201,6 +201,8 @@ def test_settings_read_by_the_code_are_declared_in_the_manifest(manifest):
         "storm_confirm_seconds",
         "holes_percent",
         "holes_confirm_seconds",
+        "loops_count",
+        "loops_minutes",
         "exclude_channels",
         "telemetry_path",
         "api_url",
@@ -215,6 +217,8 @@ def test_the_settings_become_the_watcher_command_line(loaded_module):
         "storm_confirm_seconds": 20,
         "holes_percent": 25,
         "holes_confirm_seconds": 45,
+        "loops_count": 4,
+        "loops_minutes": 10,
         "max_switches": 3,
         "exclude_channels": "Sky | Sport Uno\n\nRai 1\n",
         "observe_only": False,
@@ -226,6 +230,8 @@ def test_the_settings_become_the_watcher_command_line(loaded_module):
     assert arguments[arguments.index("--storm-confirm-seconds") + 1] == "20.0"
     assert arguments[arguments.index("--holes-percent") + 1] == "25"
     assert arguments[arguments.index("--holes-confirm-seconds") + 1] == "45.0"
+    assert arguments[arguments.index("--loops-count") + 1] == "4"
+    assert arguments[arguments.index("--loops-minutes") + 1] == "10.0"
     assert arguments.count("--exclude") == 2
     assert "--observe-only" not in arguments
 
@@ -279,6 +285,14 @@ def test_the_status_names_a_switch_made_for_timestamps(loaded_module, isolated_r
     assert "DAZN | Serie A 1 switched at 1338 timestamp discontinuities a minute" in (
         result["message"]
     )
+
+
+def test_the_status_names_a_switch_made_for_corrupt_packet_loops(loaded_module, isolated_runtime):
+    loaded_module.Journal(loaded_module.JOURNAL_PATH, 50).write(
+        "switched", channel="Sky | Sport Uno", cause="loops", loops=3
+    )
+    result = loaded_module.Plugin().run("status", {}, {"settings": {}})
+    assert "Sky | Sport Uno switched after 3 corrupt-packet loops" in result["message"]
 
 
 def test_observing_only_is_the_default_the_watcher_receives(loaded_module):

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from conftest import STEP_SECONDS, healthy, starving
 
-from underfed.telemetry import parse, parse_all, parse_discontinuity
+from underfed.telemetry import parse, parse_all, parse_corrupt_loop, parse_discontinuity
 
 REAL = (
     "2026-09-08T20:18:57+0000 [202121.ts] cushion=0s(pcr) buf=0.1MB out=1.18Mbps "
@@ -109,3 +109,19 @@ def test_a_line_from_an_older_reservoarr_has_no_missing_shares():
     assert sample is not None
     assert sample.vholes_percent is None
     assert sample.aholes_percent is None
+
+
+def test_a_corrupt_loop_line_is_read_with_its_source_and_time():
+    loop = parse_corrupt_loop(
+        "2026-10-21T20:30:51+0000 [198329.ts] corrupt-loop detected in stream "
+        "(dts=1143489600 x3) - forcing upstream reconnect + buffer flush"
+    )
+    assert loop is not None
+    assert loop.feed == "198329.ts"
+    assert loop.at == 1792614651.0
+
+
+def test_the_flush_that_follows_a_corrupt_loop_is_not_a_second_loop():
+    assert parse_corrupt_loop(
+        "2026-10-21T20:30:51+0000 [198329.ts] flushed reservoir after corrupt-loop reconnect"
+    ) is None

@@ -13,6 +13,7 @@ from .constants import (
     CAUSE_EMPTY,
     CAUSE_FORBIDDEN,
     CAUSE_HOLES,
+    CAUSE_LOOPS,
     CAUSE_TIMESTAMPS,
     CAUSE_UNDERFED,
     DEFAULT_API_URL,
@@ -20,6 +21,8 @@ from .constants import (
     DEFAULT_DEMOTE_MINUTES,
     DEFAULT_HOLES_CONFIRM_SECONDS,
     DEFAULT_HOLES_PERCENT,
+    DEFAULT_LOOPS_COUNT,
+    DEFAULT_LOOPS_MINUTES,
     DEFAULT_MAX_SWITCHES_PER_HOUR,
     DEFAULT_RATIO_PERCENT,
     DEFAULT_STABLE_SECONDS,
@@ -38,6 +41,7 @@ from .empty import EmptySourceTracker
 from .forbidden import parse_refusal
 from .holes import Holes, HolesDetector
 from .journal import Journal
+from .loops import LoopDetector, Loops
 from .state import load, save
 from .storm import Storm, StormDetector
 from .tailer import Tailer
@@ -67,6 +71,8 @@ def arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--holes-confirm-seconds", type=float, default=DEFAULT_HOLES_CONFIRM_SECONDS
     )
+    parser.add_argument("--loops-count", type=int, default=DEFAULT_LOOPS_COUNT)
+    parser.add_argument("--loops-minutes", type=float, default=DEFAULT_LOOPS_MINUTES)
     parser.add_argument("--demote-minutes", type=float, default=DEFAULT_DEMOTE_MINUTES)
     parser.add_argument("--exclude", action="append", default=[])
     parser.add_argument("--observe-only", action="store_true")
@@ -86,10 +92,13 @@ class Watcher:
             storm_confirm_seconds=max(options.storm_confirm_seconds, 5.0),
             holes_percent=min(max(options.holes_percent, 0), 100),
             holes_confirm_seconds=max(options.holes_confirm_seconds, 5.0),
+            loops_count=max(options.loops_count, 0),
+            loops_minutes=max(options.loops_minutes, 1.0),
         )
         self.detector = Detector(thresholds)
         self.storms = StormDetector(thresholds)
         self.holes = HolesDetector(thresholds)
+        self.loops = LoopDetector(thresholds)
         self.empty_sources = EmptySourceTracker()
         self.journal = Journal(Path(options.journal), MAX_RECENT_EVENTS)
         self.tailer = Tailer(Path(options.telemetry))
@@ -119,6 +128,8 @@ class Watcher:
             storm_confirm_seconds=self.options.storm_confirm_seconds,
             holes_percent=self.options.holes_percent,
             holes_confirm_seconds=self.options.holes_confirm_seconds,
+            loops_count=self.options.loops_count,
+            loops_minutes=self.options.loops_minutes,
         )
         while self._running:
             self.step()
@@ -252,7 +263,7 @@ class Watcher:
                 self.journal.write("api_error", where="catalogue", detail=str(error))
 
     def _consume(self, line: str) -> None:
-        from .telemetry import parse, parse_discontinuity
+        from .telemetry import parse, parse_corrupt_loop, parse_discontinuity
 
         refusal = parse_refusal(line)
         if refusal is not None:
@@ -276,6 +287,12 @@ class Watcher:
             storm = self.storms.observe(jump)
             if storm is not None:
                 self._act(storm.feed, self._storm_facts(storm))
+            return
+        loop = parse_corrupt_loop(line)
+        if loop is not None:
+            loops = self.loops.observe(loop)
+            if loops is not None:
+                self._act(loops.feed, self._loops_facts(loops))
 
     def _act(self, feed: str, facts: dict) -> None:
         channel = self.active.get(feed)
@@ -362,6 +379,14 @@ class Watcher:
             "vholes_percent": holes.video_percent,
             "aholes_percent": holes.audio_percent,
             "holes_seconds": round(holes.seconds),
+        }
+
+    def _loops_facts(self, loops: Loops) -> dict:
+        return {
+            "feed": loops.feed,
+            "cause": CAUSE_LOOPS,
+            "loops": loops.count,
+            "loops_seconds": round(loops.seconds),
         }
 
     def _is_excluded(self, name: str) -> bool:

@@ -7,6 +7,8 @@ from .constants import (
     DEFAULT_CONFIRM_SECONDS,
     DEFAULT_HOLES_CONFIRM_SECONDS,
     DEFAULT_HOLES_PERCENT,
+    DEFAULT_LOOPS_COUNT,
+    DEFAULT_LOOPS_MINUTES,
     DEFAULT_RATIO_PERCENT,
     DEFAULT_STABLE_SECONDS,
     DEFAULT_STORM_CONFIRM_SECONDS,
@@ -34,6 +36,8 @@ class Thresholds:
     storm_confirm_seconds: float = DEFAULT_STORM_CONFIRM_SECONDS
     holes_percent: int = DEFAULT_HOLES_PERCENT
     holes_confirm_seconds: float = DEFAULT_HOLES_CONFIRM_SECONDS
+    loops_count: int = DEFAULT_LOOPS_COUNT
+    loops_minutes: float = DEFAULT_LOOPS_MINUTES
 
     @classmethod
     def from_settings(cls, settings: dict) -> Thresholds:
@@ -57,6 +61,8 @@ class Thresholds:
             holes_confirm_seconds=max(
                 number("holes_confirm_seconds", DEFAULT_HOLES_CONFIRM_SECONDS), 5.0
             ),
+            loops_count=max(int(number("loops_count", DEFAULT_LOOPS_COUNT)), 0),
+            loops_minutes=max(number("loops_minutes", DEFAULT_LOOPS_MINUTES), 1.0),
         )
 
 

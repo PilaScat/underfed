@@ -7,7 +7,7 @@ from argparse import Namespace
 from dataclasses import replace
 from pathlib import Path
 
-from conftest import healthy, holed, starving, storm, ticks
+from conftest import corrupt_loop, healthy, holed, starving, storm, ticks
 
 from underfed.dispatcharr import ActiveChannel, ApiError, Catalogue, ChainEntry
 from underfed.watcher import Watcher, arguments
@@ -82,6 +82,8 @@ def options(tmp_path: Path, **overrides) -> Namespace:
         "storm_confirm_seconds": 15.0,
         "holes_percent": 10,
         "holes_confirm_seconds": 30.0,
+        "loops_count": 3,
+        "loops_minutes": 5.0,
         "exclude": [],
         "observe_only": False,
         "demote_minutes": 30.0,
@@ -323,6 +325,31 @@ def test_a_storm_and_a_shortfall_share_the_hourly_limit(tmp_path: Path):
 
 def test_the_arguments_of_an_apply_made_before_the_rule_existed_turn_it_on():
     assert arguments(["--journal", "x"]).storm_per_minute == 100
+
+
+def test_a_channel_whose_source_keeps_looping_is_moved_to_the_next_source(tmp_path: Path):
+    watcher, client = build(tmp_path, streaming(), chain_with_alternative())
+    for second in (0, 105, 160):
+        watcher._consume(corrupt_loop(second, feed=UNO))
+    assert client.switched == ["uuid-uno"]
+    last = events(watcher)[-1]
+    assert last["event"] == "switched"
+    assert last["cause"] == "loops"
+    assert last["loops"] == 3
+    assert last["loops_seconds"] == 160
+
+
+def test_the_loop_rule_at_zero_leaves_the_channel_alone(tmp_path: Path):
+    watcher, client = build(tmp_path, streaming(), chain_with_alternative(), loops_count=0)
+    for second in range(0, 300, 10):
+        watcher._consume(corrupt_loop(second, feed=UNO))
+    assert client.switched == []
+    assert events(watcher) == []
+
+
+def test_an_apply_made_before_the_loop_rule_existed_gets_it_with_three_in_five_minutes():
+    applied = arguments(["--journal", "x"])
+    assert (applied.loops_count, applied.loops_minutes) == (3, 5)
 
 
 REFUSED = (

@@ -5,7 +5,7 @@ from collections import Counter
 from pathlib import Path
 
 import pytest
-from conftest import healthy, holed, starving, storm, ticks
+from conftest import corrupt_loop, healthy, holed, starving, storm, ticks
 
 from underfed.detector import Thresholds
 from underfed.replay import run
@@ -80,6 +80,14 @@ def test_a_storm_is_named_in_the_summary(tmp_path: Path):
     assert len(outcome.storms) == 1
     assert "542059.ts" in outcome.summary()
     assert "timestamp discontinuities" in outcome.summary()
+
+
+def test_corrupt_packet_loops_are_named_in_the_summary(tmp_path: Path):
+    lines = ticks(0, 5, healthy) + [corrupt_loop(second) for second in (0, 105, 160)]
+    outcome = run(write(tmp_path, lines), QUICK)
+    assert len(outcome.loops) == 1
+    assert "198329.ts" in outcome.summary()
+    assert "corrupt-packet loops" in outcome.summary()
 
 
 def write(tmp_path: Path, lines: list[str]) -> Path:

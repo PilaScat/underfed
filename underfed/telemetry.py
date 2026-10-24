@@ -10,6 +10,7 @@ STAMP_AND_FEED = (
     r"\[(?P<feed>[^\]]+)\]\s+"
 )
 DISCONTINUITY = re.compile(STAMP_AND_FEED + r"ffmpeg:.*\btimestamp discontinuity\b")
+CORRUPT_LOOP = re.compile(STAMP_AND_FEED + r"corrupt-loop detected in stream\b")
 LINE = re.compile(
     STAMP_AND_FEED
     + r"cushion=(?P<cushion>\d+)s\((?P<clock>\w+)\)\s+"
@@ -47,6 +48,12 @@ class Sample:
 
 @dataclass(frozen=True)
 class Discontinuity:
+    at: float
+    feed: str
+
+
+@dataclass(frozen=True)
+class CorruptLoop:
     at: float
     feed: str
 
@@ -89,6 +96,16 @@ def parse_discontinuity(line: str) -> Discontinuity | None:
     if at is None:
         return None
     return Discontinuity(at=at, feed=match["feed"])
+
+
+def parse_corrupt_loop(line: str) -> CorruptLoop | None:
+    match = CORRUPT_LOOP.match(line.strip())
+    if match is None:
+        return None
+    at = moment(match["stamp"])
+    if at is None:
+        return None
+    return CorruptLoop(at=at, feed=match["feed"])
 
 
 def parse_all(lines: Iterable[str]) -> list[Sample]:

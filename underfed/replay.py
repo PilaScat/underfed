@@ -6,8 +6,9 @@ from pathlib import Path
 
 from .detector import Detector, Thresholds
 from .holes import HolesDetector
+from .loops import LoopDetector
 from .storm import StormDetector
-from .telemetry import parse, parse_discontinuity
+from .telemetry import parse, parse_corrupt_loop, parse_discontinuity
 
 
 def when(at: float, offset_hours: float) -> str:
@@ -52,6 +53,17 @@ class HolesHit:
 
 
 @dataclass(frozen=True)
+class LoopsHit:
+    feed: str
+    at: float
+    count: int
+    seconds: float
+
+    def when(self, offset_hours: float) -> str:
+        return when(self.at, offset_hours)
+
+
+@dataclass(frozen=True)
 class Replay:
     lines: int
     samples: int
@@ -59,11 +71,12 @@ class Replay:
     hits: list[Hit]
     storms: list[StormHit]
     holes: list[HolesHit] = field(default_factory=list)
+    loops: list[LoopsHit] = field(default_factory=list)
 
     def summary(self, offset_hours: float = 0.0) -> str:
         if not self.samples:
             return f"No telemetry found in {self.lines} line(s). Is the path right?"
-        if not self.hits and not self.storms and not self.holes:
+        if not self.hits and not self.storms and not self.holes and not self.loops:
             return (
                 f"{self.samples} sample(s) across {len(self.feeds)} source(s): "
                 f"nothing would have been switched."
@@ -109,6 +122,20 @@ class Replay:
                 f"{feed}: {len(holes)} trigger(s), first at {first_hole.when(offset_hours)} "
                 f"missing {first_hole.percent}% of its {first_hole.subject}."
             )
+        per_loop: dict[str, list[LoopsHit]] = {}
+        for loop in self.loops:
+            per_loop.setdefault(loop.feed, []).append(loop)
+        if per_loop:
+            parts.append(
+                f"{len(self.loops)} trigger(s) on corrupt-packet loops, "
+                f"on {len(per_loop)} source(s)."
+            )
+        for feed, loops in sorted(per_loop.items(), key=lambda item: -len(item[1])):
+            first_loop = loops[0]
+            parts.append(
+                f"{feed}: {len(loops)} trigger(s), first at {first_loop.when(offset_hours)} "
+                f"after {first_loop.count} loops in {first_loop.seconds:.0f}s."
+            )
         return " ".join(parts)
 
 
@@ -116,9 +143,11 @@ def run(path: Path, thresholds: Thresholds) -> Replay:
     detector = Detector(thresholds)
     storm_detector = StormDetector(thresholds)
     holes_detector = HolesDetector(thresholds)
+    loop_detector = LoopDetector(thresholds)
     hits: list[Hit] = []
     storms: list[StormHit] = []
     holes: list[HolesHit] = []
+    loops: list[LoopsHit] = []
     feeds: dict[str, int] = {}
     lines = 0
     samples = 0
@@ -140,6 +169,17 @@ def run(path: Path, thresholds: Thresholds) -> Replay:
                             at=storm.at,
                             per_minute=storm.per_minute,
                             seconds=storm.seconds,
+                        )
+                    )
+                corrupt = parse_corrupt_loop(line) if jump is None else None
+                found_loops = loop_detector.observe(corrupt) if corrupt is not None else None
+                if found_loops is not None:
+                    loops.append(
+                        LoopsHit(
+                            feed=found_loops.feed,
+                            at=found_loops.at,
+                            count=found_loops.count,
+                            seconds=found_loops.seconds,
                         )
                     )
                 continue
@@ -169,5 +209,11 @@ def run(path: Path, thresholds: Thresholds) -> Replay:
                     )
                 )
     return Replay(
-        lines=lines, samples=samples, feeds=feeds, hits=hits, storms=storms, holes=holes
+        lines=lines,
+        samples=samples,
+        feeds=feeds,
+        hits=hits,
+        storms=storms,
+        holes=holes,
+        loops=loops,
     )
