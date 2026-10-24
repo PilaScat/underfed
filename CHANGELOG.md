@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.9.0 — 2026-10-24
+
+- **A source that keeps looping on a corrupt packet is moved to the next source.** When ffmpeg
+  reports the same corrupt packet three times, reservoarr logs `corrupt-loop detected`,
+  reconnects and flushes its buffer. A provider's looping "channel offline" card can do it six
+  times in ten minutes while arriving at full rate with no discontinuity, so no other rule moves
+  it, even with a healthy source next in the chain
+  ([#1](https://github.com/PilaScat/underfed/issues/1), from [@mels0n](https://github.com/mels0n)).
+  Two new settings, **Corrupt-packet loops** (3) and
+  **Corrupt-packet loops within** (5 minutes): at that many loops on one source within the
+  window, the channel moves to the next source, within the same switches per hour. The journal
+  records it as `cause: loops`, with `loops` and `loops_seconds`. **Replay the log** counts
+  these triggers too.
+
 ## 0.8.0 — 2026-10-12
 
 - **A source missing whole stretches of picture or sound is moved to the next source.** On
