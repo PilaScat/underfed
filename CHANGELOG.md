@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.1 — 2026-11-09
+
+- **The watcher's state survives updates** (PilaScat/could-not-dispatch#5). An update from the
+  Plugin Hub replaces the plugin folder, which held the record that the watcher was applied,
+  the sources it moved down, its switches of the last hour and its journal: the watcher no
+  longer started again with the channels until Apply was pressed, and moved-down sources were
+  never moved back. They now live outside the plugin folder, in `/data/plugins/_data/underfed`,
+  or in the folder Dispatcharr gives plugins from 0.34.0, and later updates keep them. An older
+  `.runtime` folder is moved there by itself.
+- A watcher whose state moved starts on the new journal, not on the one recorded at the last
+  Apply.
+- **After this update, press Apply once.** This update still replaces the old folder: the
+  watcher does not start again by itself, sources it had moved down stay where they are, and
+  the hourly switch limit and the journal start from zero.
+
 ## 0.9.0 — 2026-10-24
 
 - **A source that keeps looping on a corrupt packet is moved to the next source.** When ffmpeg
