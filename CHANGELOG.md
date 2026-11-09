@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.2 — 2026-11-09
+
+- **A watcher left running by an update is replaced.** An install from the Plugin Hub does not
+  stop the plugin's watcher, so after an update the old one kept running the old code until
+  Apply was pressed, and an Apply with unchanged settings kept it too. The watcher now records
+  the version that started it: the first channel that starts after an update, or an Apply,
+  replaces one started by an older version. The new watcher starts with its usual warm-up.
+- **This version includes 0.9.1, which did not reach the Plugin Hub**
+  (PilaScat/could-not-dispatch#5): the watcher's state, the sources it moved down, its switches
+  of the last hour and its journal live outside the plugin folder, in
+  `/data/plugins/_data/underfed`, so later updates keep them.
+- **Coming from 0.9.0, press Apply once.** That update still replaces the old folder: the
+  watcher does not start again by itself, sources it had moved down stay where they are, and
+  the hourly switch limit and the journal start from zero.
+
 ## 0.9.1 — 2026-11-09
 
 - **The watcher's state survives updates** (PilaScat/could-not-dispatch#5). An update from the

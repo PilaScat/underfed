@@ -2,7 +2,7 @@ from __future__ import annotations
 
 PLUGIN_NAME = "Underfed"
 PLUGIN_SLUG = "underfed"
-PLUGIN_VERSION = "0.9.1"
+PLUGIN_VERSION = "0.9.2"
 PLUGIN_DESCRIPTION = (
     "Moves a channel off a source that is starving it, drifting its sound, missing whole "
     "stretches, looping on corrupt packets or refusing it: to the next source when the stream "
