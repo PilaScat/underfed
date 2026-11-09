@@ -216,7 +216,7 @@ class Plugin:
         signature = json.dumps(arguments, sort_keys=True)
         state = self._state()
         if process.is_running(state.get("pid"), state.get("token")):
-            if state.get("signature") == signature:
+            if state.get("signature") == signature and not self._older(state):
                 return {"status": "ok", "message": self._running_message(settings)}
             process.terminate(state.get("pid"), state.get("token"))
 
@@ -329,13 +329,16 @@ class Plugin:
             }
         if not self._heartbeat_due():
             return {"status": "ok", "message": "Checked recently."}
-        if process.is_running(state.get("pid"), state.get("token")):
+        if self._current(state):
             return {"status": "ok", "message": "Watcher is running."}
         key = _as_text(settings.get("api_key"), "")
         if not key:
             return {"status": "error", "message": "An API key is required."}
+        if self._replaced_meanwhile():
+            return {"status": "ok", "message": "Watcher is running."}
+        latest = self._state()
         self._start(
-            _applied_arguments(state, self._journal_path) or self._arguments(settings), key
+            _applied_arguments(latest, self._journal_path) or self._arguments(settings), key
         )
         return {"status": "ok", "message": "Watcher restarted."}
 
@@ -433,7 +436,15 @@ class Plugin:
         pid = process.spawn(
             BASE_DIR, arguments, token, self._log_path, extra_env={API_KEY_ENV: api_key}
         )
-        self._remember({"pid": pid, "token": token, "started_at": time.time()})
+        self._remember(
+            {
+                "pid": pid,
+                "token": token,
+                "started_at": time.time(),
+                "version": PLUGIN_VERSION,
+                "version_token": token,
+            }
+        )
         if not self._settled(pid, token):
             process.terminate(pid)
             self._remember({}, clear=["pid", "token"])
@@ -452,6 +463,23 @@ class Plugin:
         stopped = process.terminate(state.get("pid"), state.get("token"))
         strays = process.terminate_strays()
         return stopped or bool(strays)
+
+    def _older(self, state: dict) -> bool:
+        return state_module.is_older(state_module.started_version(state), PLUGIN_VERSION)
+
+    def _current(self, state: dict) -> bool:
+        return process.is_running(state.get("pid"), state.get("token")) and not self._older(state)
+
+    def _replaced_meanwhile(self) -> bool:
+        latest = self._state()
+        if self._current(latest):
+            return True
+        if process.is_running(latest.get("pid"), latest.get("token")):
+            logger.info(
+                "Underfed replaces the watcher started by %s",
+                state_module.started_version(latest) or "an older version",
+            )
+        return False
 
     def _heartbeat_due(self) -> bool:
         global _heartbeat_checked_at

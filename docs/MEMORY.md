@@ -97,6 +97,15 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
   missing or empty folder; the same function is copied in Gluetun Rotate and Could Not
   Dispatch. Nothing removes it on delete: on 0.34.0 Dispatcharr asks the user. The first update
   to 0.9.1 still loses `.runtime/`, so it needs one Apply.
+- **A watcher started by an older version is replaced** (0.9.2). An install from the hub does
+  not stop the watcher, and with the state kept in the data folder `restart` found it running
+  and kept the old code. The start records `version` with `version_token`, the token of that
+  process, so a pid started by code that does not know the field never passes for current.
+  `restart` replaces a watcher whose version is missing or older, never a newer one, or a worker
+  still on the old code would replace it back; it checks the key first and reads the state again
+  before starting, and logs the replacement at INFO. Apply with unchanged settings keeps the
+  watcher only if it is not older. The new watcher starts with its warm-up. `state.is_older` and
+  `state.started_version` are the same as in Could Not Dispatch and Gluetun Rotate.
 
 ## Traps
 
