@@ -45,9 +45,10 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
   triggers only on the broken feed.
 - **The watcher is a detached process** without Django, talking to Dispatcharr over HTTP.
   `restart` is bound to `channel_start` and starts it with the arguments of the last Apply,
-  stored in `.runtime/state.json` as `signature`; the API key is read from the saved settings.
+  stored in `state.json` as `signature`, unless their `--journal` is not the current one (moved
+  state, 0.9.1): then from the saved settings. The API key is read from the saved settings.
 - **The hourly limit survives a restart** (0.3.2): the watcher keeps the switches of the last
-  hour in `.runtime/switches.json`, not in the journal, which is trimmed to 50 lines.
+  hour in `switches.json`, not in the journal, which is trimmed to 50 lines.
 
 - **A refusal rewrites the chain, not the session** (0.5.0). The other two failures move the
   viewer with `next_stream`; this one changes the order of the channel's sources, because the
@@ -87,7 +88,15 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
   from that provider becomes it.
 - **The restore re-reads the catalogue.** With the cached copy, a chain already reordered made
   `restored_order` return "nothing to do" and the demotion was dropped without the source ever
-  climbing back. The state lives in `.runtime/demotions.json`, so a restart does not lose it.
+  climbing back. The state lives in `demotions.json`, so a restart does not lose it.
+- **State lives in a data folder outside the plugin folder** (0.9.1, PilaScat/could-not-dispatch#5):
+  an update replaces the plugin folder, `.runtime/` included, and the watcher stayed down with
+  its demotions, hourly switches and journal gone. The folder is `context["data_dir"]` when
+  Dispatcharr gives it (0.34.0), else `/data/plugins/_data/underfed`, the hub's path.
+  `state.migrate` moves an old `.runtime/` there on the first `run` or `stop`, only into a
+  missing or empty folder; the same function is copied in Gluetun Rotate and Could Not
+  Dispatch. Nothing removes it on delete: on 0.34.0 Dispatcharr asks the user. The first update
+  to 0.9.1 still loses `.runtime/`, so it needs one Apply.
 
 ## Traps
 
@@ -100,8 +109,8 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
   (fixed in 0.3.1).
 - `next_stream` goes through even with the provider at its connection limit when the channel is
   already on that M3U profile.
-- Importing a zip with `overwrite=true` replaces the folder, `.runtime/` included: copy it out
-  and back. Reload after the import, then Apply, since the reload stops every plugin's watcher.
+- Importing a zip with `overwrite=true` replaces the plugin folder; the data folder stays.
+  Reload after the import, then Apply, since the reload stops every plugin's watcher.
 
 ## Release
 

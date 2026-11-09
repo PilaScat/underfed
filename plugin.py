@@ -30,6 +30,7 @@ try:
         MAX_RECENT_EVENTS,
         PLUGIN_DESCRIPTION,
         PLUGIN_NAME,
+        PLUGIN_SLUG,
         PLUGIN_VERSION,
     )
     from .underfed.detector import Thresholds
@@ -57,6 +58,7 @@ except ImportError:
         MAX_RECENT_EVENTS,
         PLUGIN_DESCRIPTION,
         PLUGIN_NAME,
+        PLUGIN_SLUG,
         PLUGIN_VERSION,
     )
     from underfed.detector import Thresholds
@@ -66,10 +68,11 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
-RUNTIME_DIR = BASE_DIR / ".runtime"
-STATE_PATH = RUNTIME_DIR / "state.json"
-JOURNAL_PATH = RUNTIME_DIR / "underfed.jsonl"
-LOG_PATH = RUNTIME_DIR / "watcher.log"
+RUNTIME_DIR = BASE_DIR.parent / "_data" / PLUGIN_SLUG
+LEGACY_RUNTIME_DIR = BASE_DIR / ".runtime"
+STATE_FILE = "state.json"
+JOURNAL_FILE = "underfed.jsonl"
+LOG_FILE = "watcher.log"
 
 DETACHING_REASONS = frozenset({"disable", "delete"})
 ACTED_EVENTS = frozenset({"switched", "would_switch"})
@@ -111,14 +114,19 @@ def _as_text(value: object, fallback: str) -> str:
     return text or fallback
 
 
-def _applied_arguments(state: dict) -> list[str] | None:
+def _applied_arguments(state: dict, journal: Path) -> list[str] | None:
     try:
         arguments = json.loads(str(state.get("signature") or ""))
     except ValueError:
         return None
-    if isinstance(arguments, list) and arguments and all(isinstance(a, str) for a in arguments):
-        return arguments
-    return None
+    if not isinstance(arguments, list) or not all(isinstance(a, str) for a in arguments):
+        return None
+    if "--journal" not in arguments:
+        return None
+    position = arguments.index("--journal") + 1
+    if position >= len(arguments) or arguments[position] != str(journal):
+        return None
+    return arguments
 
 
 def _lines(value: object) -> list[str]:
@@ -140,6 +148,26 @@ class Plugin:
     fields = _MANIFEST.get("fields", [])
     actions = _MANIFEST.get("actions", [])
 
+    def __init__(self) -> None:
+        self._runtime = RUNTIME_DIR
+
+    @property
+    def _state_path(self) -> Path:
+        return self._runtime / STATE_FILE
+
+    @property
+    def _journal_path(self) -> Path:
+        return self._runtime / JOURNAL_FILE
+
+    @property
+    def _log_path(self) -> Path:
+        return self._runtime / LOG_FILE
+
+    def _locate(self, context: dict) -> None:
+        given = str(context.get("data_dir") or "").strip()
+        self._runtime = Path(given) if given else RUNTIME_DIR
+        state_module.migrate([RUNTIME_DIR, LEGACY_RUNTIME_DIR], self._runtime)
+
     def run(self, action: str, params: dict, context: dict) -> dict:
         handlers = {
             "apply": self._apply,
@@ -151,6 +179,7 @@ class Plugin:
         handler = handlers.get((action or "").strip().lower())
         if handler is None:
             return {"status": "error", "message": f"Unknown action '{action}'."}
+        self._locate(dict(context or {}))
         try:
             return handler(dict(context or {}))
         except Exception as exc:
@@ -159,6 +188,7 @@ class Plugin:
 
     def stop(self, context: dict | None = None) -> dict:
         context = dict(context or {})
+        self._locate(context)
         stopped = self._stop_watcher()
         if str(context.get("reason") or "") in DETACHING_REASONS:
             self._remember({}, clear=["pid", "token", "signature", "applied"])
@@ -229,7 +259,7 @@ class Plugin:
         settings = dict(context.get("settings") or {})
         state = self._state()
         running = process.is_running(state.get("pid"), state.get("token"))
-        records = Journal(JOURNAL_PATH, MAX_RECENT_EVENTS).read()
+        records = Journal(self._journal_path, MAX_RECENT_EVENTS).read()
         acted = [row for row in records if row.get("event") in ACTED_EVENTS]
         skipped = [row for row in records if row.get("event") == "skipped"]
         failed = [row for row in records if row.get("event") in FAILED_EVENTS]
@@ -304,7 +334,9 @@ class Plugin:
         key = _as_text(settings.get("api_key"), "")
         if not key:
             return {"status": "error", "message": "An API key is required."}
-        self._start(_applied_arguments(state) or self._arguments(settings), key)
+        self._start(
+            _applied_arguments(state, self._journal_path) or self._arguments(settings), key
+        )
         return {"status": "ok", "message": "Watcher restarted."}
 
     def _remove(self, context: dict) -> dict:
@@ -363,7 +395,7 @@ class Plugin:
             "--api-url",
             _as_text(settings.get("api_url"), DEFAULT_API_URL),
             "--journal",
-            str(JOURNAL_PATH),
+            str(self._journal_path),
             "--ratio-percent",
             str(_as_number(settings.get("ratio_percent"), 70)),
             "--confirm-seconds",
@@ -399,13 +431,13 @@ class Plugin:
         process.terminate_strays()
         token = uuid.uuid4().hex
         pid = process.spawn(
-            BASE_DIR, arguments, token, LOG_PATH, extra_env={API_KEY_ENV: api_key}
+            BASE_DIR, arguments, token, self._log_path, extra_env={API_KEY_ENV: api_key}
         )
         self._remember({"pid": pid, "token": token, "started_at": time.time()})
         if not self._settled(pid, token):
             process.terminate(pid)
             self._remember({}, clear=["pid", "token"])
-            raise RuntimeError(f"The watcher exited on startup. See {LOG_PATH}.")
+            raise RuntimeError(f"The watcher exited on startup. See {self._log_path}.")
 
     def _settled(self, pid: int, token: str, seconds: float = 3.0) -> bool:
         deadline = time.monotonic() + seconds
@@ -431,7 +463,7 @@ class Plugin:
         return True
 
     def _state(self) -> dict:
-        return state_module.load(STATE_PATH)
+        return state_module.load(self._state_path)
 
     def _remember(self, updates: dict, clear: list[str] | None = None) -> dict:
-        return state_module.remember(STATE_PATH, updates, clear or [])
+        return state_module.remember(self._state_path, updates, clear or [])
