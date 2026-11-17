@@ -44,9 +44,25 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
   measure of shorter false alarms. On the 14 September replay the 15 s confirmation still
   triggers only on the broken feed.
 - **The watcher is a detached process** without Django, talking to Dispatcharr over HTTP.
-  `restart` is bound to `channel_start` and starts it with the arguments of the last Apply,
-  stored in `state.json` as `signature`, unless their `--journal` is not the current one (moved
-  state, 0.9.1): then from the saved settings. The API key is read from the saved settings.
+- **A leader-elected service keeps it running** (0.10.0). On Dispatcharr 0.34.0 actions and
+  event hooks run in a Celery worker, where the old `restart` bound to `channel_start` always
+  skipped, so the watcher never came back after a reload or a restart. `on_leader_acquired`
+  starts one service, which checks every 10 s (60 s after a problem, written once to the
+  journal) and starts the watcher with the arguments of the last Apply, stored in `state.json`
+  as `signature`, unless their `--journal` is not the current one (moved state, 0.9.1): then
+  from the saved settings. The API key comes from `context["get_settings"]()`. Losing the
+  leadership does not stop the watcher, so the next leader adopts it; `stop()` kills it on
+  reload, disable and delete, and `remove` clears `applied`. A service whose `plugin.json` on
+  disk is newer than its own code starts nothing and leaves the start to the new one.
+- **The watcher starts with `os.posix_spawn`** (0.10.0): the leader can be a uWSGI worker with
+  gevent's `patch_all()`, where `fork()` can hang in gevent's atfork handler (Dispatcharr's own
+  `posix_spawn_proc` says so). `POSIX_SPAWN_CLOSEFROM` from 3 keeps uWSGI's sockets out of the
+  watcher, and `PYTHONSAFEPATH` replaces the `cwd` that `posix_spawn` cannot set. A process
+  left as a zombie (`Z` in `/proc/<pid>/stat`) counts as gone: `terminate` from a process that
+  is not its parent used to wait the whole grace period on one.
+- **Manifest version 1** (0.10.0), with `persistent_service`, `subprocess` and
+  `outbound_network` declared; the registry derives the minimum Dispatcharr 0.34.0 from it.
+  The settings fall into a Rules section and a collapsed Advanced one.
 - **The hourly limit survives a restart** (0.3.2): the watcher keeps the switches of the last
   hour in `switches.json`, not in the journal, which is trimmed to 50 lines.
 
@@ -98,19 +114,25 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
   Dispatch. Nothing removes it on delete: on 0.34.0 Dispatcharr asks the user. The first update
   to 0.9.1 still loses `.runtime/`, so it needs one Apply.
 - **A watcher started by an older version is replaced** (0.9.2). An install from the hub does
-  not stop the watcher, and with the state kept in the data folder `restart` found it running
-  and kept the old code. The start records `version` with `version_token`, the token of that
-  process, so a pid started by code that does not know the field never passes for current.
-  `restart` replaces a watcher whose version is missing or older, never a newer one, or a worker
-  still on the old code would replace it back; it checks the key first and reads the state again
-  before starting, and logs the replacement at INFO. Apply with unchanged settings keeps the
+  not stop the watcher, and with the state kept in the data folder it was found running with the
+  old code. The start records `version` with `version_token`, the token of that process, so a
+  pid started by code that does not know the field never passes for current. The supervisor
+  replaces a watcher whose version is missing or older, never a newer one, or a process still on
+  the old code would replace it back; it checks the key first and reads the state again before
+  starting, and logs the replacement at INFO. Apply with unchanged settings keeps the
   watcher only if it is not older. The new watcher starts with its warm-up. `state.is_older` and
   `state.started_version` are the same as in Could Not Dispatch and Gluetun Rotate.
 
 ## Traps
 
 - Dispatcharr passes `params` to `run()`, never in `context`, and only the events in
-  `apps/connect/models.py:SUPPORTED_EVENTS` reach a plugin (20 in 0.32.0).
+  `apps/connect/models.py:SUPPORTED_EVENTS` reach a plugin (20 in 0.32.0 and 0.34.0).
+- From 0.34.0 every action, by hand or from an event, runs in a Celery worker of the `plugins`
+  queue, not in the web process.
+- From 0.34.0 Dispatcharr wraps `socket`, `subprocess`, `threading`, `requests`,
+  `urllib.request` and `http.client` in every plugin module, manifest version 0 included. The
+  socket proxy has no `__enter__`, so `with socket.socket()` raises `TypeError`; a replacement
+  of `subprocess.Popen` is a function, not a class. Nothing here uses either.
 - The tailer compares the first bytes of the log as well as `(device, inode)`: on Linux a file
   replaced in place can keep its inode.
 - "Never" is `-inf`, not 0, next to `time.monotonic()`: the monotonic clock starts at boot, so
@@ -119,7 +141,8 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
 - `next_stream` goes through even with the provider at its connection limit when the channel is
   already on that M3U profile.
 - Importing a zip with `overwrite=true` replaces the plugin folder; the data folder stays.
-  Reload after the import, then Apply, since the reload stops every plugin's watcher.
+  `POST /api/plugins/plugins/underfed/reload/` (0.34.0) reloads this plugin only; its `stop()`
+  kills the watcher and the supervisor of the new code starts it again, without an Apply.
 
 ## Release
 
@@ -129,7 +152,8 @@ Decisions, traps and the release routine. What the plugin does for a user is in 
 4. A GitHub Release with the CHANGELOG text, the list of commits it contains, and the zip.
 5. Publishing the Release starts `.github/workflows/registry-pr.yml`, which opens the PR to
    `Dispatcharr/Plugins` from the `PilaScat/Plugins` fork: the version and the description of
-   `plugin.json` in `plugins/underfed/plugin.json`, the README next to it when it changed, and the CHANGELOG
+   `plugin.json` in `plugins/underfed/plugin.json`, with its `manifest_version`, which the
+   registry wants equal to the zip's, the README next to it when it changed, and the CHANGELOG
    section as the description. It needs the `REGISTRY_PR_TOKEN` secret, a classic PAT of
    PilaScat with `public_repo` only; it can be rerun by hand with the tag. The registry
    installs the zip at `source_url`, so a README change reaches users only with a new version.
