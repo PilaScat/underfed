@@ -12,7 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_NAME = "_dispatcharr_plugin_underfed"
 
-ALLOWED_FIELD_TYPES = {"boolean", "number", "string", "text", "select", "info"}
+ALLOWED_FIELD_TYPES = {"boolean", "number", "string", "text", "select", "info", "section"}
 PLUGIN_HOOK_EVENTS = {
     "channel_start",
     "channel_stop",
@@ -176,6 +176,20 @@ def test_manifest_binds_only_events_that_reach_plugin_hooks(manifest):
 
 def test_no_action_waits_for_a_channel_to_start(manifest):
     assert all("events" not in action for action in manifest["actions"])
+
+
+def test_the_manifest_declares_version_one_and_what_the_plugin_does(manifest):
+    assert manifest["manifest_version"] == 1
+    assert manifest["capabilities"] == ["outbound_network", "persistent_service", "subprocess"]
+
+
+def test_every_field_sits_in_a_declared_section_or_at_the_top(manifest):
+    sections = {f["id"] for f in manifest["fields"] if f["type"] == "section"}
+    assert sections == {"rules", "advanced"}
+    for field in manifest["fields"]:
+        assert field.get("section", "rules") in sections, field["id"]
+    advanced = next(f for f in manifest["fields"] if f["id"] == "advanced")
+    assert advanced["collapsed"] is True
 
 
 def test_manifest_carries_what_the_registry_requires(manifest):
