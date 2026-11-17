@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.10.0 — 2026-11-17
+
+- **Needs Dispatcharr 0.34.0.** That version runs plugin actions in a background worker, where
+  the restart that ran when a channel started never started the watcher: after a reload or a
+  restart of Dispatcharr it stayed down until Apply was pressed. A background service that
+  Dispatcharr runs on one of its processes now keeps the watcher running: it starts with
+  Dispatcharr and comes back by itself within about half a minute of a restart, a reload or an
+  update, with the settings of the last Apply. The Restart watcher action is gone. On older
+  versions of Dispatcharr the Plugin Hub keeps offering 0.9.2.
+- **Dispatcharr asks you to approve what the plugin does** when you update or enable it: a
+  background service, a process of its own and HTTP calls. Declining disables the plugin.
+- The settings are grouped: the rules, and a collapsed Advanced section.
+- The watcher no longer inherits Dispatcharr's open files and sockets, and one that has ended
+  is no longer taken for a running one.
+
 ## 0.9.2 — 2026-11-09
 
 - **A watcher left running by an update is replaced.** An install from the Plugin Hub does not
